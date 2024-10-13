@@ -1,0 +1,386 @@
+---
+title: "3. laboratorijska vježba"
+subtitle: "Multivarijatna analiza podataka"
+date: "ak. god. 2021/2022"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library("GGally")
+library(MASS)
+library(dplyr)
+library(ggrepel)
+library("FactoMineR")
+library("scatterplot3d")
+```
+
+## 1. Uvod i upute za predaju
+
+Cilj ove laboratorijske vježbe je primijeniti osnovne koncepte multivarijatne analize podataka, istražiti podatke te ispitati hipoteze. Preduvjet za rješavanje vježbe je osnovno znanje programskog jezika *R* i rad s *R Markdown* dokumentima. Sama vježba je koncipirana kao projekt u kojem istražujete i eksperimentirate koristeći dane podatke - ne postoji nužno samo jedan točan način rješavanja svakog podzadatka.
+
+Rješavanje vježbe svodi se na čitanje uputa u tekstu ovog dokumenta, nadopunjavanje blokova kôda (možete dodavati i dodatne blokove kôda ukoliko je potrebno) i ispisivanje rezultata (u vidu ispisa iz funkcija, tablica i grafova). Vježbu radite samostalno, a svoje rješenje branite na terminima koji su vam dodijeljeni u kalendaru. Pritom morate razumjeti teorijske osnove u okviru onoga što je obrađeno na predavanjima i morate pokazati da razumijete sav kôd koji ste napisali.
+
+Vaše rješenje potrebno je predati u sustav *Moodle* u obliku dvije datoteke:
+
+1.  Ovaj .Rmd dokument s Vašim rješenjem (naziva IME_PREZIME_JMBAG.rmd),\
+2.  PDF ili HTML dokument kao izvještaj generiran iz vašeg .Rmd rješenja (također naziva IME_PREZIME_JMBAG).
+
+Rok za predaju je **7. lipnja 2022. u 23:59h**. **Jedan od uvjeta za prolaz predmeta je minimalno ostvarenih 50% bodova na svim laboratorijskim vježbama. Nadoknade laboratorijskih vježbi neće biti organizirane.** Za sva dodatna pitanja svakako se javite na email adresu predmeta: [*map\@fer.hr*](mailto:map@fer.hr){.email}.
+
+## 2. Podatkovni skup
+
+U ovoj laboratorijskoj vježbi analizirat ćemo skup podataka s najpoznatijim klasičnim skladbama prema glasovima korisnika stranice [classicalmusiconly.com](https://classicalmusiconly.com/). Varijable su redom:
+
+-   `title` --- naziv skladbe
+-   `composer` --- ime skladatelja
+-   `category` --- kategorija skladbe
+-   `year` --- godina kada je skladba napisana
+-   `stars` --- broj glasova (koliko korisnika je označilo skladbu kao favorit)
+
+Varijable `composer` i `category` treba tretirati kao da se radi o kategorijskim varijablama.
+
+**Napomena:** ako koristite funkciju `factor` za modeliranje kategorijskih varijabli, tada je potrebno nakon filtriranja skupa podataka ponovno pozvati `factor` nad preostalim vrijednostima kategorijske varijabli --- u suprotnom će izbačene vrijednosti ostati zapamćene, što će davati nepregledne rezultate.
+
+## 2.1. Predobrada i analiza podataka
+
+Učitajte datoteku `classical.tsv` i proučite podatke.
+
+```{r}
+df <- read.csv("classical.tsv", sep = "\t")
+df_tmp <- df[,]
+head(df)
+
+#df[!complete.cases(df),]
+head(df)
+print(ncol(df))
+print(nrow(df))
+```
+
+Proučite koliki je **ukupan broj skladbi po pojedinom skladatelju**, te koliki je **ukupan broj skladbi po pojedinoj kategoriji**. **Ispišite** ih poredano silazno po broju skladbi.
+
+```{r}
+df %>% count(composer, sort=TRUE)
+```
+
+```{r}
+df %>% count(category, sort=TRUE)
+```
+
+**Ispišite** imena prvih deset skladatelja čije skladbe imaju **najveći ukupan broj glasova**, te prvih deset skladatelja čije skladbe imaju **najveći prosječan broj glasova**.
+
+```{r}
+df %>% group_by(composer) %>% summarise(sum_stars = sum(stars))  %>% arrange(desc(sum_stars)) %>% top_n(10)
+```
+```{r}
+df %>% group_by(composer) %>% summarise(mean_stars = mean(stars))  %>% arrange(desc(mean_stars)) %>% top_n(10)
+```
+
+Iz podataka **uklonite** sve skladbe čiji skladatelji se pojavljuju vrlo rijetko (npr. manje od 5--10 puta). Zatim, uklonite sve skladbe čija kategorija se pojavljuje vrlo rijetko (npr. manje od 5--10 puta).
+
+```{r}
+df_n_greater_10 <- (df %>% count(composer, sort=TRUE) %>% filter(n > 10))
+df_n_greater_10
+
+l <- dplyr::pull(df_n_greater_10, composer)
+df <- df[df$composer %in% l, ]
+head(df)
+print(nrow(df))
+```
+
+
+```{r}
+df_n_greater_10_2 <- (df %>% count(category, sort=TRUE) %>% filter(n > 10))
+df_n_greater_10_2
+
+l2 <- dplyr::pull(df_n_greater_10_2, category)
+df <- df[df$category %in% l2, ]
+head(df)
+print(nrow(df))
+```
+
+U ostatku vježbe koristite ovaj filtrirani podskup podataka.
+Obratite pozornost i na nedostajuće vrijednosti (ako ih ima). Razmislite na koji način ćete ih tretirati u ostatku vježbe.
+
+```{r}
+df <- na.omit(df)
+print(nrow(df))
+```
+
+# 3. Višedimenzionalno skaliranje
+
+## 3.1. Metričko skaliranje
+
+**Izračunajte i prikažite** kontingencijsku tablicu za varijable `composer` i `category`.
+Budući da će kontingencijska tablica biti jako velika, prikažite samo njezin dio koji sadrži nekolicinu najčešćih skladatelja i kategorija.
+
+```{r}
+library(MASS)
+
+l <- (df %>% count(composer, sort=TRUE))$composer[1:15]
+l2 <- (df %>% count(category, sort=TRUE))$category[1:15]
+df2 <- df[(df$composer %in% l) & (df$category %in% l2),]
+
+# l <- (df_tmp %>% count(composer, sort=TRUE))$composer[1:30]
+# l2 <- (df_tmp %>% count(category, sort=TRUE))$category[1:30]
+# df2 <- df_tmp[(df_tmp$composer %in% l & df_tmp$category %in% l2),]
+
+print(l)
+print(l2)
+
+
+ct <- table(df2$composer, df2$category)
+print(nrow(ct))
+print(ncol(ct))
+print(ct)
+```
+
+**Izračunajte** udaljenosti među kategorijama koristeći *totalnu varijacijsku udaljenost*. Neka je $C$ kontingencijska matrica dimenzija $N \times M$, te neka su skladatelji raspoređeni po retcima, a kategorije po stupcima. Udaljenost između dvije kategorije $i$ i $j$ računa se kao
+$$
+\delta_{i,j} = \frac{1}{2} \sum_{k=1}^N \left\lvert \frac{C_{k,i}}{S_i} - \frac{C_{k,j}}{S_j} \right\rvert,
+$$
+gdje je $S_i = \sum_{k=1}^N C_{k,i}$. **Izračunajte i vizualizirajte matricu udaljenosti kategorija.** Koji parovi kategorija su najsličniji, a koji najrazličitiji?
+
+```{r}
+library(corrplot)
+delta <- data.frame(matrix(0, ncol = ncol(ct), nrow = ncol(ct)))
+colnames(delta) <- colnames(ct)
+rownames(delta) <- colnames(ct)
+
+s = colSums(ct)
+for (i in 1:ncol(ct)){
+  for (j in 1:ncol(ct)){
+    res = 0
+    for (k in 1:nrow(ct)){
+      res = res + abs(ct[k, i]/s[i] - ct[k, j]/s[j])
+    }
+    delta[i, j] = 0.5*res
+  }
+}
+
+corrplot(data.matrix(delta), type="upper")
+
+head(delta)
+print(nrow(delta))
+print(ncol(delta))
+```
+
+Provedite postupak klasičnog višedimenzionalnog skaliranja. **Skicirajte** *scree plot* svojstvenih vrijednosti. Koliki broj dimenzija bi objasnio većinu varijance?
+
+```{r}
+eigen_dec <- eigen(delta)
+Q <- eigen_dec$vectors
+
+plot(
+  x = seq(1:length(eigen_dec$values)), 
+  y = eigen_dec$values,
+  type = "o",
+  xlab = "Br.", 
+  ylab = "Svojstvene vrijednosti"
+)
+
+
+
+mds <- cmdscale(delta, k=2, eig=TRUE)
+x <- mds$points[,1]
+y <- mds$points[,2]
+
+print(mds$points)
+```
+
+**Prikažite** kategorije na grafu raspršenja s **dvije dimenzije** i **označite** koju kategoriju pojedina točka predstavlja. Uočavate li kakvo prirodno grupiranje kategorija?
+
+```{r}
+plot(x, y,
+     type="n"
+)
+
+text(x, y, labels = colnames(delta), cex=0.7)
+```
+
+**Prikažite** graf raspršenja za skaliranje dobiveno *Sammon* metodom i **označite** koju kategoriju pojedina točka predstavlja. Usporedite ga s gore dobivenim grafom. Kakve razlike uočavate?
+
+```{r}
+mds_sammon=sammon(as.matrix(delta), 
+    y = mds$points, 
+    k = 2, 
+    niter = 100, 
+    trace = TRUE,
+    magic = 0.2, 
+    tol = 1e-4
+)
+
+
+names(mds_sammon)
+x1 <- mds_sammon$points[, 1]
+y1 <- mds_sammon$points[, 2]
+
+
+plot(mds_sammon$points,
+     type="n"
+)
+text(mds_sammon$points, labels = colnames(delta), cex=0.7)
+```
+
+## 3.2. Nemetričko skaliranje
+
+Odaberite proizvoljan broj skladatelja (npr. 10--30) s **najvećim prosječnim brojem** glasova po skladbama, te **kreirajte** novi podskup podataka tako da sadrži samo skladbe tih autora.
+
+```{r}
+df_sub1 <- df %>% group_by(composer) %>% summarise(mean_stars = mean(stars))  %>% arrange(desc(mean_stars)) %>% top_n(15)
+df_sub1 <-  df[(df$composer %in% dplyr::pull(df_sub1, composer)),]
+
+# df_sub1 <- df_tmp %>% group_by(composer) %>% summarise(mean_stars = mean(stars))  %>% arrange(desc(mean_stars)) %>% top_n(15)
+# df_sub1 <-  df_tmp[(df_tmp$composer %in% dplyr::pull(df_sub1, composer)),]
+
+head(df_sub1)
+print(nrow(df_sub1))
+print(ncol(df_sub1))
+```
+
+U nastavku vježbe koristite ovako generirani podskup podataka.
+
+**Definirajte** jednu proizvoljnu mjeru različitosti između dva skladatelja. Vaša mjera različitosti može uključivati npr.
+
+-   euklidsku udaljenost između broja skladbi po kategorijama,
+-   korelacijsku udaljenost između broja skladbi po kategorijama,
+-   totalnu varijacijsku udaljenost između broja skladbi po kategorijama,
+-   ukupan broj skladbi po pojedinoj kategoriji,
+-   prosječnu godinu izdanja svih skladbi,
+-   ukupan broj glasova po svim skladbama,
+-   prosječan broj glasova po svim skladbama,
+-   ...
+
+Pokušajte konstruirati mjeru različitosti koju ćete moći intuitivno interpretirati.
+
+**Izračunajte** matricu različitosti za skladatelje koristeći Vašu mjeru različitosti. **Izračunajte** izometrično skaliranje i **prikažite** rezultat grafom raspršenja s **dvije dimenzije**, te **označite** koju kategoriju pojedina točka predstavlja. Možete li interpretirati dobiveni graf u skladu s korištenom mjerom različitosti?
+
+```{r}
+ct <- table(df_sub1$category, df_sub1$composer)
+
+delta <- data.frame(matrix(0, ncol=ncol(ct), nrow=ncol(ct)))
+colnames(delta) <- colnames(ct)
+
+# euklidska udaljenost
+s = colSums(ct)
+for (i in 1:ncol(ct)){
+  for (j in 1:ncol(ct)){
+    res = (ct[,i] - ct[,j]) %*% (ct[,i] - ct[,j])
+    delta[i, j] = sqrt(res)
+  }
+}
+#delta = (delta - min(delta))/(max(delta) - min(delta))
+
+# totalna varijacijska udaljenost
+#s = colSums(ct)
+#for (i in 1:ncol(ct)){
+#  for (j in 1:ncol(ct)){
+#    res = 0
+#    for (k in 1:nrow(ct)){
+#      res = res + abs(ct[k, i]/s[i] - ct[k, j]/s[j])
+#    }
+#    delta[i, j] = 0.5*res
+#  }
+#}
+
+print(delta)
+
+```
+
+```{r}
+delta = data.matrix(delta)
+mds_iso=isoMDS(delta, y = cmdscale(delta, 2), k=2)
+plot(mds_iso$points,
+     type = "n")
+text(mds_iso$points, labels=colnames(delta))
+```
+
+Ponovite jednu metodu **metričkog skaliranja** po izboru (klasično ili *Sammon*), ovaj puta korištenjem proizvoljne **mjere udaljenosti** nad skladateljima (npr. euklidska/korelacijska/*totalna varijacijska* udaljenost između broja skladbi po pojedinoj kategoriji). Pokušajte odabrati mjeru udaljenosti koju ćete lakše moći interpretirati. Možete li objasniti razlike u odnosu na prethodno dobiveni graf?
+
+```{r}
+mds_cmd=cmdscale(delta, eig=TRUE, k=2)
+x <- mds_cmd$points[, 1]
+y <- mds_cmd$points[, 2]
+
+plot(mds_cmd$points,
+     type = "n"
+)
+text(mds_cmd$points, labels=colnames(delta))
+```
+
+# 4. Analiza korespondencije
+
+**Kreirajte** novi podskup podataka tako da sadrži samo skladbe **prvih 5--10 skladatelja** po nekom kriteriju --- proizvoljno odaberite kriterij po kojemu ćete ih poredati (npr. ukupan broj skladbi, ukupan broj glasova po svim skladbama, prosječan broj glasova po svim skladbama...). Zatim **odredite** koje kategorije skladbi se najčešće pojavljuju u dobivenom podskupu, te unutar njega zadržite samo skladbe koje pripadaju **5--10 najčešćih kategorija**.
+
+```{r}
+# df_sub2 <- df_tmp %>% group_by(composer) %>% summarise(all_stars = sum(stars)) %>% arrange(desc(all_stars)) %>% top_n(5)
+# l3 <- dplyr::pull(df_sub2, composer)
+# df_sub2 <- df_tmp[df_tmp$composer %in% l3,]
+
+df_sub2 <- df %>% group_by(composer) %>% summarise(all_stars = sum(stars)) %>% arrange(desc(all_stars)) %>% top_n(5)
+l3 <- dplyr::pull(df_sub2, composer)
+df_sub2 <- df[df$composer %in% l3,]
+
+top_n_categories <- df_sub2 %>% count(category, sort=TRUE) %>% top_n(5)
+print(top_n_categories)
+
+l4 <- dplyr::pull(top_n_categories, category)
+df_sub2 <- df_sub2[df_sub2$category %in% l4,]
+df_sub2
+```
+
+U nastavku vježbe koristite ovako generirani podskup podataka.
+
+**Izračunajte i prikažite** kontingencijsku tablicu između skladatelja i kategorije skladbi koje su napisali.
+
+```{r}
+ct2 <- table(df_sub2$composer, df_sub2$category)
+ct2
+```
+
+**Prikažite** graf analize korespondencije između varijabli `composer` i `category`. Obratite pozornost na ukupnu objašnjenu varijancu. Na temelju dobivenog grafa i kontingencijske tablice iz prethodnog zadatka pokušajte odgovoriti na sljedeća pitanja:
+
+-   Koji skladatelji se najviše izdvajaju po pojedinoj kategoriji?
+-   Koji skladatelji su određenu kategoriju skladbi pisali znatno više ili manje u usporedbi s drugim skladateljima?
+-   Koji skladatelji su određenu kategoriju skladbi pisali znatno više ili manje od drugih kategorija?
+-   Koji skladatelji su pisali prosječan broj skladbi u svim kategorijama?
+
+```{r}
+library(ca)
+mytable <- with(df_sub2[c('composer', 'category')], ct2)
+fit <- ca(mytable)
+summary(fit)
+plot(fit)
+```
+
+Kreirajte novi podskup podataka tako da sadrži **5--10 skladatelja po Vašem izboru**. Zatim ponovno **odredite** koje kategorije skladbi se najčešće pojavljuju u dobivenom podskupu, te zadržite samo skladbe koje pripadaju **prvih 5--10 kategorija**.  **Izračunajte i prikažite** kontingencijsku matricu. **Prikažite** graf analize korespondencije. Pokušajte ponovo odgovoriti na gornja pitanja. Kakve nove zaključke možete izvesti?
+
+```{r}
+composers <- c('Claude Debussy', 'Richard Wagner', 'Franz Liszt', 'Edvard Grieg', 'Erik Satie')
+
+# df_sub3 <- df_tmp[df_tmp$composer %in% composers, ]
+df_sub3 <- df[df$composer %in% composers, ]
+
+top_n_categories <- df_sub3 %>% count(category, sort=TRUE) %>% top_n(10)
+print(top_n_categories)
+
+l5 <- dplyr::pull(top_n_categories, category)
+df_sub3 <- df_sub3[df_sub3$category %in% l5,]
+df_sub3
+```
+
+```{r}
+ct3 <- table(df_sub3$composer, df_sub3$category)
+ct3
+```
+
+
+```{r}
+mytable <- with(df_sub3[c('composer', 'category')], ct3)
+fit <- ca(mytable)
+summary(fit)
+plot(fit)
+```

@@ -1,0 +1,16 @@
+origin                 0.1 0.1
+angle                  69
+unitLength             0.4
+unitLengthDegreeScaler 0.5
+
+command F draw 1
+command + rotate 25
+command - rotate -25
+command [ push
+command ] pop
+command G color 00FF90
+
+axiom GX
+
+production X F+[[X]-X]-F[-FX]+X
+production F FF

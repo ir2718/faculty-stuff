@@ -1,0 +1,669 @@
+---
+title: "2. laboratorijska vježba"
+subtitle: "Multivarijatna analiza podataka"
+date: "ak. god. 2021/2022"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## 1. Uvod i upute za predaju
+
+Cilj ove laboratorijske vježbe je primijeniti osnovne koncepte multivarijatne analize podataka, istražiti podatke te ispitati hipoteze. Preduvjet za rješavanje vježbe je osnovno znanje programskog jezika _R_ i rad s _R Markdown_ dokumentima. Sama vježba je koncipirana kao projekt u kojem istražujete i eksperimentirate koristeći dane podatke - ne postoji nužno samo jedan točan način rješavanja svakog podzadatka.
+
+Rješavanje vježbe svodi se na čitanje uputa u tekstu ovog dokumenta, nadopunjavanje blokova kôda (možete dodavati i dodatne blokove kôda ukoliko je potrebno) i ispisivanje rezultata (u vidu ispisa iz funkcija, tablica i grafova). Vježbu radite samostalno, a svoje rješenje branite na terminima koji su vam dodijeljeni u kalendaru. Pritom morate razumjeti teorijske osnove u okviru onoga što je obrađeno na predavanjima i morate pokazati da razumijete sav kôd koji ste napisali.
+
+Vaše rješenje potrebno je predati u sustav _Moodle_ u obliku dvije datoteke: 
+
+1. Ovaj .Rmd dokument s Vašim rješenjem (naziva IME_PREZIME_JMBAG.rmd),  
+2. PDF ili HTML dokument kao izvještaj generiran iz vašeg .Rmd rješenja (također naziva IME_PREZIME_JMBAG).
+
+Rok za predaju je **15. svibnja 2022. u 23:59h**. **Jedan od uvjeta za prolaz predmeta je minimalno ostvarenih 50% bodova na svim laboratorijskim vježbama. Nadoknade laboratorijskih vježbi neće biti organizirane.** Za sva dodatna pitanja svakako se javite na email adresu predmeta: _map@fer.hr_.
+
+
+## 2. Podatkovni skup
+U laboratorijskoj vježbi razmatra se dinamika cijena vrijednosnica na financijskim tržištima. Dane su povijesne tjedne cijene ETF-ova (eng. exchange traded fund) koji prate određene dioničke, obvezničke ili druge indekse. Konkretno, radi se o sljedećim fondovima:
+
+- `AGG` (iShares Core U.S. Aggregate Bond ETF) - obveznice s američkog tržišta,
+- `IEF` (iShares 7-10 Year Treasury Bond ETF) - srednjeročne državne obveznice,
+- `LQD` (iShares iBoxx $ Investment Grade Corporate Bond ETF) - korporativne obveznice,
+- `SHY` (iShares 1-3 Year Treasury Bond ETF) - kratkoročne državne obveznice,
+- `TIP` (iShares TIPS Bond ETF) - državne obveznice zaštićene od inflacije,
+- `TLT` (iShares 20+ Year Treasury Bond ETF) - dugoročne državne obveznice,
+- `DBC` (Invesco DB Commodity Index Tracking Fund) - sirovine i roba,
+- `GLD` (SPDR Gold Trust) - zlato,
+- `USO` (United States Oil Fund) - nafta,
+- `IJH` (iShares Core S&P Mid-Cap ETF) - dionice tvrtki s američkog tržišta,
+- `IWM` (iShares Russell 2000 ETF) - dionice američkih tvrtki s malim kapitalom,
+- `SPY` (SPDR S&P 500 ETF Trust) - dionice tvrtki s američkog tržišta,
+- `VTV` (Vanguard Value ETF) - dionice tvrtki s američkog tržišta,
+- `XLB` (Materials Select Sector SPDR Fund) - dionice tvrtki za materijale,
+- `XLE` (Energy Select Sector SPDR Fund) - dionice tvrtki energetskog sektora,
+- `XLF` (Financial Select Sector SPDR Fund) - dionice tvrtki financijskog sektora,
+- `XLI` (Industrial Select Sector SPDR Fund) - dionice tvrtki industrijskog sektora,
+- `XLK` (Technology Select Sector SPDR Fund) - dionice tvrtki iz tehnološkog sektora,
+- `XLP` (Consumer Staples Select Sector SPDR Fund) - dionice tvrki za necikličku potrošačku robu,
+- `XLU` (Utilities Select Sector SPDR Fund) - dionice tvrtki komunalnih djelatnosti,
+- `XLV` (Health Care Select Sector SPDR Fund) - dionice tvrtki iz zdravstvenog sektora,
+- `XLY` (Consumer Discretionary Select Sector SPDR Fund) - dionice tvrtki za cikličku potrošačku robu,
+- `IYR` (iShares U.S. Real Estate ETF) - dionice tvrtki iz područja nekretnina,
+- `VNQ` (Vanguard Real Estate Index Fund) - dionice tvrtki iz područja nekretnina.
+
+Pri modeliranju zajedničkog kretanja i rizika vrijednosnica, najčešće se koriste povrati: $R(t) = \frac{S(t)-S(t-1)}{S(t-1)},$ gdje je $S(t)$ cijena vrijednosnice u tjednu $t$. 
+
+### 2.1. Učitavanje podataka i korelacijska analiza
+Podaci se nalaze u datoteci "ETFprices.csv". Učitajte ih, provjerite ispravnost, izračunajte tjedne povrate te vizualizirajte matricu korelacije povrata - razmislite o grupama i korelacijskim strukturama koje u njoj vidite. U ostatku laboratorijske vježbe također koristite povrate, a ne cijene. 
+```{r}
+df <- read.csv(file = 'ETFprices.csv')
+
+print(nrow(df))
+print(sapply(df, typeof))
+```
+```{r}
+df$Time <- as.Date(df$Time , format = "%d-%b-%Y 00:00:00")
+
+print(sapply(df, typeof))
+```
+
+```{r}
+for (i in colnames(df)) {
+  num_na = sum(is.na(df$i))
+  num_inf = sum(is.infinite(df$i))
+  
+  if (num_na != 0){
+    print(i)
+    print(num_na)
+  } 
+  
+  if (num_inf != 0) {
+    print(i)
+    print(num_inf)
+  }
+}
+```
+
+
+#### Tjedni povrati
+
+```{r}
+# check if its already in order
+print(all(df == df[order(df$Time),]))
+```
+
+```{r}
+head(df, 5)
+```
+
+
+```{r}
+n = nrow(df)
+p = ncol(df)
+
+ETF_returns = ((data.matrix(df[2:n,2:p]) - data.matrix(df[1:(n-1),2:p]))/data.matrix(df[1:(n-1),2:p]))
+
+ETF_returns = cbind(df$Time[2:n],as.data.frame(ETF_returns))
+head(ETF_returns, 5)
+ETF_returns = ETF_returns[,2:p]
+```
+
+#### Korelacijska matrica
+
+```{r}
+library(corrplot)
+corr_mat = cor(ETF_returns, method='pearson')
+corrplot(
+  corr_mat,
+  method='circle'
+)
+```
+
+## 3. Analiza glavnih komponenti
+Cilj ovog zadatka je analizirati kretanje danih ETF-ova i izračunati glavne komponente koje objašnjavaju njihovu dinamiku.
+
+### 3.1. Glavne komponente
+Izračunajte glavne komponente matrice korelacije i izračunajte koliki udio varijance objašnjavaju. Odredite broj glavnih komponenti koje ćete zadržati u analizi. Grafički prikažite i usporedite koeficijente prvih nekoliko komponenti.
+```{r}
+pca <- prcomp(ETF_returns, center=TRUE, scale=TRUE)
+
+print(round(pca$rotation,digits=3))
+```
+```{r}
+summary(pca)
+```
+
+
+```{r}
+plot(pca$sdev[1:15]^2, 
+  type = "b", 
+  cex.lab=0.75, 
+  cex.main=0.75, 
+  cex.axis=0.75, 
+  xlab="i", 
+  ylab=expression(lambda["i"]),
+  main='Scree plot svojstvenih vrijednosti korelacijske matrice'
+)
+grid()
+```
+Otprilike se vidi pregib na 3. komponenti pa bih za broj komponenti odabrao 2.
+
+```{r}
+barplot(
+  pca$rotation[,1], 
+  main="1. komponenta",
+  ylab=expression("e"["i"]), cex.axis = 0.75, 
+  cex.names = 0.75, 
+  cex.main=0.85, 
+  cex.lab=0.75,
+  ylim=c(-0.5, 0.5)
+)
+
+barplot(
+  pca$rotation[,2], 
+  main="2. komponenta",
+  ylab=expression("e"["i"]), cex.axis = 0.75, 
+  cex.names = 0.75, 
+  cex.main=0.85, 
+  cex.lab=0.75,
+  ylim=c(-0.5, 0.5)
+)
+
+barplot(
+  pca$rotation[,3], 
+  main="3. komponenta",
+  ylab=expression("e"["i"]), cex.axis = 0.75, 
+  cex.names = 0.75, 
+  cex.main=0.85, 
+  cex.lab=0.75,
+  ylim=c(-0.5, 0.5)
+)
+
+barplot(
+  pca$rotation[,4], 
+  main="4. komponenta",
+  ylab=expression("e"["i"]), cex.axis = 0.75, 
+  cex.names = 0.75, 
+  cex.main=0.85, 
+  cex.lab=0.75,
+  ylim=c(-0.5, 0.5)
+)
+```
+
+Prikažite graf raspršenja prve dvije glavne komponente i proučite možete li primijetiti neke grupe fondova. 
+```{r} 
+library(devtools)
+library(ggbiplot)
+library(usethis)
+library(ggplot2)
+library(plyr)
+library(scales)
+library(grid)
+#ggbiplot(pca)
+#Y = as.matrix(scale(data.matrix(df[2:n,2:p])))%*%pca$rotation
+Y = as.matrix(scale(ETF_returns))%*%pca$rotation
+plot(Y[,1], Y[,2], pch = 20, cex=0.7, cex.lab=0.5, cex.axis=0.5, xlab=expression("y"["1"]), ylab=expression("y"["2"]), xlim=c(-8, 8), ylim=c(-8, 8), asp=1)
+grid()
+```
+
+Ovdje se ne mogu primijetiti neke grupe fondova.
+
+### 3.2. Svojstveni portfelji
+
+U primjeni PCA i svojstvenoj dekompoziciji kovarijance u financijama, svojstveni vektori se često zovu i tzv. svojstveni portfelji. Općenito, portfelj je vektor $w = [w_1,...,w_N]$ u kojem svaki element predstavlja težinu ili udio kapitala u određenoj vrijednosnici. Često je dobro pomnožiti njihove težine s predznakom njihove sume - na taj način zapravo samo "okrećemo" predznak svojstvenog vektora tako da mu je suma pozitivna (konačni PCA rastav je i dalje isti ako svojstveni vektor pomnožimo s -1). Također, dobro je i skalirati svojstvene portfelje sa sumom njihovih apsolutnih vrijednosti:
+$\tilde{w}_i = \frac{w_i}{\sum_j^N{\vert w_j \vert}}$.
+Na taj način se osigurava da visoke magnitude pojedinih elemenata ne uzrokuju velike razlike u volatilnostima svojstvenih portfelja.
+Ukoliko znamo povrate $R\in\mathbb{R}^{T\times N}$ (gdje je $R_i\in\mathbb{R}^{T}$ vektor povrata za vrijednosnicu $i$) za $N$ vrijednosnica u nekom vremenskom periodu od $T$ dana, povrate portfelja $w$ u tom istom periodu možemo izračunati kao:
+$R_p = \sum{R_i w_i} = R\cdot w$.
+Izračunajte skalirane svojstvene portfelje $\tilde{w}$ koji proizlaze iz prve dvije glavne komponente. Za ta dva svojstvena portfelja izračunajte povijesne povrate kroz razmatrani period. Grafički prikažite vremensko kretanje njihovih vrijednosti tako da njihove povrate "vratite" natrag u cijene, s tim da početna cijena bude jednaka za oba portfelja, npr. $V_0 = 100$. Vrijednost portfelja u trenutku $t$ možemo izračunati po formuli: $V_t = V_{t-1}\cdot(1+R_{t})$.
+
+
+```{r}
+first = pca$rotation[1:nrow(pca$rotation), 1]
+second = pca$rotation[1:nrow(pca$rotation), 2]
+
+print('Before multiplying with -1:')
+print(sum(first))
+print(sum(second))
+
+first = -first
+second = -second
+
+print('After multiplying:')
+print(sum(first))
+print(sum(second))
+```
+
+```{r}
+print('Before scaling')
+print(first[1:5])
+print(second[1:5])
+
+first = first/(sum(abs(first)))
+second = second/(sum(abs(second)))
+
+print('After scaling')
+print(first[1:5])
+print(second[1:5])
+```
+
+
+```{r}
+r1 <- as.matrix(ETF_returns) %*% first
+r2 <- as.matrix(ETF_returns) %*% second
+
+head(r1, 5)
+head(r2, 5)
+```
+
+```{r}
+v1 <- c(100)
+v2 <- c(100)
+
+
+for (i in 1:length(r1)){
+  v1 <- append(v1, v1[i] * (1 + r1[i]))
+  v2 <- append(v2, v2[i] * (1 + r2[i]))
+}
+
+print(v1[1:5])
+print(v2[1:5])
+```
+
+```{r}
+c_ret1 <- as.data.frame(cbind(df$Time, v1))
+c_ret2 <- as.data.frame(cbind(df$Time, v2))
+dates <- as.Date(c_ret1[,1],origin = "1970-01-01")
+c_ret1[,1] <- dates
+c_ret2[,1] <- dates
+colnames(c_ret1) <- c('Date', 'portoflio1')
+colnames(c_ret2) <- c('Date', 'portoflio2')
+
+library("reshape2")
+library("ggplot2")
+
+ggplot(c_ret1, aes(x = Date, y = portoflio1)) + geom_line(color='blue')
+ggplot(c_ret2, aes(x = Date, y = portoflio2)) + geom_line(color='blue')
+```
+
+## 4. Faktorska analiza
+
+### 4.1. Metode procjena koeficijenata modela
+Na danim podacima odredite broj faktora te procijenite faktorski model pomoću metode glavnih komponenti i metode najveće izglednosti. Usporedite procjene ove dvije metode. Koja Vam se čini bolja? Što možete zaključiti iz vrijednosti faktora? Pronađite procjenu vrijednosti faktora koja daje najbolju interpretabilnost.
+
+```{r}
+ev = eigen(corr_mat)
+
+lambda = ev$values
+e = ev$vectors
+
+plot(lambda[1:15],
+  type = "b",
+  cex.lab=0.75,
+  cex.main=0.75,
+  cex.axis=0.75,
+  xlab="i",
+  ylab=expression(lambda["i"]),
+  main='Scree plot svojstvenih vrijednosti korelacijske matrice'
+)
+grid()
+```
+
+Teško je procijeniti pošto ne postoji očiti pregib, ovdje bih se odlučio za 2 ili 3 komponente. Daljnju analizu ću nastaviti s 2 komponente.
+
+```{r}
+# procjena koristenjem metode glavnih komponenata
+L = cbind(sqrt(lambda[1]) * e[,1], sqrt(lambda[2])*e[,2])
+h = rowSums(L^2)
+psi = 1-h
+print(L)
+
+residual = corr_mat - L %*% t(L) - diag(psi)
+print(round(residual, 3))
+```
+
+```{r}
+r_ = corr_mat
+diag(r_) = (1 - 1 / diag(solve(corr_mat)))
+eigen_r_ = eigen(corr_mat)
+
+L_ = as.matrix(eigen_r_$vectors[,1:2]) %*% diag(sqrt(eigen_r_$values[1:2]))
+
+h_ = rowSums(L_^2)
+
+L_
+```
+
+```{r}
+fa = factanal(
+  factors=2,
+  covmat=corr_mat, 
+  rotation="none",
+  method="mle",
+  lower=0.0121
+)
+
+fa$loadings
+```
+
+
+```{r}
+fa = factanal(
+  factors=2,
+  covmat=corr_mat, 
+  rotation="varimax",
+  method="mle",
+  lower=0.0121
+)
+
+fa$loadings
+```
+
+
+### 4.2. Specifične varijance faktora
+Izračunajte specifične varijance faktora za model s dva faktora i model s tri faktora. Pomoću stupčastog dijagrama prikažite i usporedite dobivene vrijednosti. 
+```{r}
+efa2 = factanal(
+  factors=2,
+  covmat=corr_mat, 
+  lower = 0.0121,
+  rotation="none"
+)
+
+efa3 = factanal(
+  factors=3,
+  covmat=corr_mat,
+  rotation="none"
+)
+
+spec2 = efa2$uniquenesses
+spec3 = efa3$uniquenesses
+
+print(sum(spec2))
+print(sum(spec3))
+
+print(as.matrix(spec2))
+print(as.matrix(spec3))
+```
+
+```{r}
+barplot(
+  rbind(spec2, spec3), 
+  beside=TRUE, 
+  col=c("blue", "red"),
+  ylab=expression(psi["i"]), cex.axis = 0.75, 
+  cex.names = 0.75, 
+  cex.main=0.85, 
+  cex.lab=0.75,
+  main="Specifične varijance za model s 2 i 3 faktora"
+)
+
+legend("topright",
+       legend = c("2 faktora","3 faktora"), 
+       fill = c("blue", "red"),
+       cex = 0.65)
+```
+
+
+## 5. Diskriminantna analiza
+Financijska tržišta su od listopada 2007. do srpnja 2009. godine bila u krizi. U datoteci "crisis.csv" za svaki tjedan iz prethodno učitanih povijesnih tjednih cijena možete pronaći je li tržište tada bilo u krizi ili ne - 1 predstavlja krizu, 0 predstavlja period bez krize. Učitajte nove podatke te ih spojite s tablicom povrata.
+```{r}
+df_crisis <- read.csv('crisis.csv')
+df_crisis$Time <- as.Date(df$Time , format = "%d.%m.%Y 00:00")
+head(df_crisis)
+```
+
+
+```{r}
+print(all(df_crisis == df_crisis[order(df_crisis$Time),]))
+```
+
+```{r}
+df_final <- ETF_returns
+df_final['crisis'] <- df_crisis[2:nrow(df_crisis),]$Crisis
+# df_final['time'] <- df_crisis[2:nrow(df_crisis),]$Time
+
+print(nrow(ETF_returns))
+print(nrow(df_final))
+
+head(df_final)
+tail(df_final)
+
+```
+
+
+### 5.1. Diskriminantna analiza pomoću povrata
+
+Provedite diskriminantnu analizu koja tjedne odvaja na krizne i one bez krize pomoću povrata fondova. Pomoću stupčastog dijagrama prikažite vektore srednjih vrijednosti u krizi i izvan nje. Također, na isti način prikažite korelaciju fonda AGG (Aggregate Bond ETF-a) s ostalim fondovima u krizi i izvan krize. Usporedite rezultate linearne diskriminantne analize (funkcija u R-u: `lda`) i kvadratne diskriminantne analize (funkcija u R-u: `qda`) pomoću tablica konfuzije i mjere APER (eng. apparent error rate). Razmislite o tome koji je razlog razlike u rezultatima ove dvije metode.
+
+```{r}
+df_not_crisis <- df_final[df_final$crisis==0,]
+df_crisis <- df_final[df_final$crisis==1,]
+
+head(df_not_crisis, 5)
+head(df_crisis, 5)
+
+print(nrow(df_not_crisis))
+print(nrow(df_crisis))
+```
+
+```{r}
+means_not_crisis = colMeans(df_not_crisis[,1:ncol(df_not_crisis)-1])
+means_crisis = colMeans(df_crisis[,1:ncol(df_not_crisis)-1])
+
+barplot(
+  rbind(means_not_crisis, means_crisis), 
+  beside=TRUE, 
+  col=c("blue", "red"),
+  ylab=expression(psi["i"]), cex.axis = 0.75, 
+  cex.names = 0.75, 
+  cex.main=0.85, 
+  cex.lab=0.75,
+  main="Srednje vrijednosti varijabli tijekom krize i izvan krize"
+)
+
+legend("topright",
+       legend = c("0","1"), 
+       fill = c("blue", "red"),
+       cex = 0.65)
+```
+```{r}
+corr_agg_not_crisis = cor(df_not_crisis[,1:ncol(df_not_crisis)-1], method='pearson')
+corr_agg_crisis = cor(df_crisis[,1:ncol(df_not_crisis)-1], method='pearson')
+
+corr_agg_not_crisis = corr_agg_not_crisis[1, 1:ncol(corr_agg_not_crisis)]
+corr_agg_crisis = corr_agg_crisis[1, 1:ncol(corr_agg_crisis)]
+
+barplot(
+  rbind(corr_agg_not_crisis, corr_agg_crisis), 
+  beside=TRUE, 
+  col=c("blue", "red"),
+  ylab=expression(psi["i"]), cex.axis = 0.75, 
+  cex.names = 0.75, 
+  cex.main=0.85, 
+  cex.lab=0.75,
+  main="Korelacije varijable AGG tijekom krize i izvan krize"
+)
+
+legend("topright",
+       legend = c("0","1"), 
+       fill = c("blue", "red"),
+       cex = 0.65)
+```
+
+
+```{r}
+library(MASS)
+lda <- lda(crisis ~ ., data = df_final)
+lda
+```
+
+```{r}
+qda <- qda(crisis ~ ., data = df_final)
+qda
+```
+
+
+```{r}
+library(caret)
+library(lattice)
+lda_pred <- predict(lda, df_final)$class
+qda_pred <- predict(qda, df_final)$class
+
+c1 = confusionMatrix(lda_pred, as.factor(df_final$crisis))
+c2 = confusionMatrix(qda_pred, as.factor(df_final$crisis))
+
+print('Confusion matrix for the LDA model:')
+c1$table
+print('Confusion matrix for the QDA model:')
+c2$table
+
+```
+```{r}
+# 1 - TN,  2 - FP, 3 - FN, 4 - TP
+#aper1 = (c1$table[2] + c1$table[3])/sum(c1$table)
+#aper2 = (c2$table[2] + c2$table[3])/sum(c2$table)
+
+#print('APER for LDA model:')
+#print(aper1)
+#print('APER for QDA model:')
+#print(aper2)
+
+# print(as.vector(1-c1$overall[1]))
+# print(as.vector(1-c2$overall[1]))
+```
+
+```{r}
+mistakes <- 0
+for (i in 1:nrow(df_final)) {
+  holdout <- df_final[i, ]
+  tmp <- df_final[-i, ]
+  lda.fit <- lda(crisis ~ ., data = tmp)
+  if (predict(lda.fit, holdout)$class != holdout$crisis) mistakes <- mistakes + 1 
+}
+
+library(stringr)
+str_c("APER: ",mistakes / nrow(df_final) * 100, "%")
+```
+
+```{r}
+mistakes <- 0
+for (i in 1:nrow(df_final)) {
+  holdout <- df_final[i, ]
+  tmp <- df_final[-i, ]
+  qda.fit <- qda(crisis ~ ., data = tmp)
+  if (predict(qda.fit, holdout)$class != holdout$crisis) mistakes <- mistakes + 1 
+}
+
+library(stringr)
+str_c("APER: ",mistakes / nrow(df_final) * 100, "%")
+```
+
+###5.2. Diskriminantna analiza pomoću glavnih komponenti
+
+Provedite diskriminantnu analizu kao u prošlom podzadatku, no ovaj put koristeći glavne komponente izračunate u 3. zadatku kao varijable. Provjerite i usporedite uspješnost klasifikacije koristeći tablice konfuzije i APER za različit broj komponenti. 
+
+### 2 komponente
+
+```{r} 
+pcdata = data.frame(pca$x[,1:2], crisis=df_final$crisis)
+lda <- lda(crisis ~ ., data=pcdata)
+qda <- qda(crisis ~ ., data=pcdata)
+```
+```{r}
+lda_pred <- predict(lda, pcdata)$class
+qda_pred <- predict(qda, pcdata)$class
+
+c1 = confusionMatrix(lda_pred, as.factor(pcdata$crisis))
+c2 = confusionMatrix(qda_pred, as.factor(pcdata$crisis))
+
+print('Confusion matrix for the LDA model:')
+c1$table
+print('Confusion matrix for the QDA model:')
+c2$table
+```
+
+```{r}
+#print('APER for LDA model:')
+#print(as.vector(1-c1$overall[1]))
+#print('APER for QDA model:')
+#print(as.vector(1-c2$overall[1]))
+```
+
+```{r}
+mistakes <- 0
+for (i in 1:nrow(pcdata)) {
+  holdout <- pcdata[i, ]
+  tmp <- pcdata[-i, ]
+  lda.fit <- lda(crisis ~ ., data = tmp)
+  if (predict(lda.fit, holdout)$class != holdout$crisis) mistakes <- mistakes + 1 
+}
+str_c("APER: ",mistakes / nrow(pcdata) * 100, "%")
+```
+
+```{r}
+mistakes <- 0
+for (i in 1:nrow(pcdata)) {
+  holdout <- pcdata[i, ]
+  tmp <- pcdata[-i, ]
+  qda.fit <- qda(crisis ~ ., data = tmp)
+  if (predict(qda.fit, holdout)$class != holdout$crisis) mistakes <- mistakes + 1 
+}
+str_c("APER: ",mistakes / nrow(pcdata) * 100, "%")
+```
+
+
+
+### 3 komponente
+
+
+```{r} 
+pcdata = data.frame(pca$x[,1:3], crisis=df_final$crisis)
+lda <- lda(crisis ~ ., data=pcdata)
+qda <- qda(crisis ~ ., data=pcdata)
+```
+```{r}
+lda_pred <- predict(lda, pcdata)$class
+qda_pred <- predict(qda, pcdata)$class
+
+c1 = confusionMatrix(lda_pred, as.factor(pcdata$crisis))
+c2 = confusionMatrix(qda_pred, as.factor(pcdata$crisis))
+
+print('Confusion matrix for the LDA model:')
+c1$table
+print('Confusion matrix for the QDA model:')
+c2$table
+```
+
+```{r}
+#print('APER for LDA model:')
+#print(as.vector(1-c1$overall[1]))
+#print('APER for QDA model:')
+#print(as.vector(1-c2$overall[1]))
+```
+
+```{r}
+mistakes <- 0
+for (i in 1:nrow(pcdata)) {
+  holdout <- pcdata[i, ]
+  tmp <- pcdata[-i, ]
+  lda.fit <- lda(crisis ~ ., data = tmp)
+  if (predict(lda.fit, holdout)$class != holdout$crisis) mistakes <- mistakes + 1 
+}
+str_c("APER: ",mistakes / nrow(pcdata) * 100, "%")
+```
+
+```{r}
+mistakes <- 0
+for (i in 1:nrow(pcdata)) {
+  holdout <- pcdata[i, ]
+  tmp <- pcdata[-i, ]
+  qda.fit <- qda(crisis ~ ., data = tmp)
+  if (predict(qda.fit, holdout)$class != holdout$crisis) mistakes <- mistakes + 1 
+}
+str_c("APER: ",mistakes / nrow(pcdata) * 100, "%")
+```

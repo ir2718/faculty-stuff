@@ -1,0 +1,397 @@
+---
+title: "1. laboratorijska vježba"
+subtitle: "Multivarijatna analiza podataka"
+date: "ak. god. 2021/2022"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+*Verzija: 1.0*
+
+## 1. Uvod i upute za predaju
+
+Cilj ove laboratorijske vježbe je primijeniti osnovne koncepte multivarijatne analize podataka, istražiti podatke te ispitati hipoteze. Preduvjet za rješavanje vježbe je osnovno znanje programskog jezika _R_ i rad s _R Markdown_ dokumentima. Sama vježba je koncipirana kao projekt u kojem istražujete i eksperimentirate koristeći dane podatke - ne postoji nužno samo jedan točan način rješavanja svakog podzadatka.
+
+Rješavanje vježbe svodi se na čitanje uputa u tekstu ovog dokumenta, nadopunjavanje blokova kôda (možete dodavati i dodatne blokove kôda ukoliko je potrebno) i ispisivanje rezultata (u vidu ispisa iz funkcija, tablica i grafova). Vježbu radite samostalno, a svoje rješenje branite na terminima koji su vam dodijeljeni u kalendaru. Pritom morate razumjeti teorijske osnove u okviru onoga što je obrađeno na predavanjima i morate pokazati da razumijete sav kôd koji ste napisali.
+
+Vaše rješenje potrebno je predati u sustav _Moodle_ u obliku dvije datoteke: 
+
+1. Ovaj .Rmd dokument s Vašim rješenjem (naziva IME_PREZIME_JMBAG.rmd),  
+2. PDF ili HTML dokument kao izvještaj generiran iz vašeg .Rmd rješenja (također naziva IME_PREZIME_JMBAG).
+
+Rok za predaju je **3. travnja 2022. u 23:59h**. Podsjećamo da bodovi iz laboratorijskih vježbi ulaze i u bodove na ispitnom roku, te da je za polaganje predmeta potrebno imati barem 50% ukupnih bodova iz laboratorijskih vježbi. **Nadoknade laboratorijskih vježbi neće biti organizirane.** Za sva dodatna pitanja svakako se javite na email adresu predmeta: _map@fer.hr_.
+
+## 2. Podatkovni skup
+
+Podatkovni skup koji će biti razmatran u vježbi sadrži bodove studenata na jednom fakultetskom kolegiju. Svakom studentu upisani su bodovi iz dviju laboratorijskih vježbi (**LAB**), pet zadataka međuispita (**MI**), pet zadataka završnog ispita (**ZI**), pet zadataka ispitnog roka (**IR**) i kojoj grupi predavanja pripadaju (**Grupa**).
+
+Studenti mogu položiti kolegij kontinuiranim putem ili na ispitnom roku. Kontinuirani put sastoji se od bodova s laboratorijskih vježbi, međuispita i završnog ispita. Kronološki, 1. laboratorijska vježba održana je prije međuispita, dok je 2. laboratorijska vježba održana između međuispita i završnog ispita. Ispitni rok održan je nakon završnog ispita. Ako student polaže predmet na ispitnom roku, gledaju se samo bodovi s ispitnog roka. Ukupan broj bodova je 100, a bodovi su raspodijeljeni na sljedeći način:
+
+* Kontinuirana nastava:
+  + **LAB**: 20 bodova (0-10 svaka vježba)
+  + **MI** : 40 bodova (0-8 svaki zadatak)
+  + **ZI** : 40 bodova (0-8 svaki zadatak)
+
+* Ispitni rok:
+  + **IR** : 100 bodova (0-20 svaki zadatak)
+
+Za prolazak kolegija potrebno je skupiti **više** od 50 bodova i izaći na obje laboratorijske vježbe (izlazak na vježbe nužan je uvjet i za polaganje ispitnog roka, iako se bodovi ne prenose). Ako student nije pristupio pripadajućem ispitu/laboratorijskoj vježbi, nije upisan podatak (što nije isto kao i 0 bodova). 
+
+## 3. Priprema podataka i eksploratorna analiza
+
+U ovom dijelu vježbe potrebno je učitati podatke i napraviti osnovnu eksploratornu analizu podataka.
+
+### 3.1 Učitavanje podataka
+
+Učitajte podatkovni skup iz datoteke _studenti.csv_ i pripremite podatke za analizu. Pritom obratite pozornost na sljedeće:
+
+* Provjerite jesu li sve varijable očekivanog tipa,
+* Provjerite jesu li vrijednosti unutar zadanog raspona (s obzirom na gore opisano bodovanje),
+* Provjerite zadovoljavaju li bodovi gore opisane uvjete predmeta,
+* Za nedostajuće podatke ispitajte jesu li opravdani te odaberite i primijenite tehniku upravljanja nedostajućim podatcima. 
+
+Nakon što su podatci pripremljeni, analizirajte i ispišite deksriptivne statistike varijabli.
+
+1) Provjera tipova varijabli:
+
+```{r}
+df <- read.csv('./studenti[1].csv')
+head(df)
+```
+
+1) Izmjene krivo unesenih vrijednosti:
+
+```{r}
+
+# MI_5, ZI_5, LAB_1, LAB_2 su problematicni jer se radi o characterima
+print(sapply(df, typeof))
+
+print(unique(df$LAB_1))
+print(unique(df$LAB_2))
+
+print(unique(df$MI_5))
+print(unique(df$ZI_5))
+```
+
+```{r}
+df$LAB_1[df$LAB_1 == "NULL"] <- NA
+
+df$LAB_2[df$LAB_2 == "NULL"] <- NA
+
+df$MI_5[df$MI_5 == "0.0/"] <- 0.0
+
+df$ZI_5[df$ZI_5 == "0.5p"] <- 0.5
+
+print(unique(df$LAB_1))
+print(unique(df$LAB_2))
+
+print(unique(df$MI_5))
+print(unique(df$ZI_5))
+```
+
+Pretvorba tipova:
+```{r}
+df$LAB_1 <- as.numeric(df$LAB_1)
+df$LAB_2 <- as.numeric(df$LAB_2)
+df$MI_5 <- as.numeric(df$MI_5)
+df$ZI_5 <- as.numeric(df$ZI_5)
+
+print(sapply(df, typeof))
+```
+
+2) Provjera raspona vrijednosti:
+```{r}
+df_range = t(apply(df, 2, range, na.rm=TRUE))
+colnames(df_range) <- c('MIN', 'MAX')
+df_range
+```
+```{r}
+print(df$MI_2[df$MI_2 > 10])
+
+print(df$ZI_1[df$ZI_1 < 0])
+
+df<-df[(df$MI_2 <= 10 & df$ZI_1 > 0),] 
+
+# posto se radi o samo dva primjera nije toliko bitno, ali moguce i da su pogreske bile: 
+# 18 -> 8
+# -3 -> 3
+```
+
+```{r}
+df_range = t(apply(df, 2, range, na.rm=TRUE))
+colnames(df_range) <- c('MIN', 'MAX')
+df_range
+```
+
+Kod MI_2 varijable je postoji problematična vrijednost 18, koja bi trebala biti manja ili jednaka 10. Druga problematična vrijednost je vrijednost varijable ZI_1 koja je negativna, a trebala bi biti veća ili jednaka 0.
+
+3) Provjera zadovoljavaju li bodovi kriterije:
+
+```{r}
+# ne moze se dogoditi da netko ima bodove iz ispita ako nema oba labosa
+print(length(df[is.na(df$LAB_1) & is.na(df$LAB_2),]))
+
+df = df[!is.na(df$LAB_1) & !is.na(df$LAB_2),] 
+```
+
+Više smisla ima gledati deskriptivne statistike tako da se ignoriraju NA vrijednosti pa ću to napraviti prije zamjene nedostajućih podataka.
+
+```{r}
+summary(df)
+```
+
+4) Zamjena nedostajućih podataka:
+
+```{r}
+df['take_exam'] = ifelse( 
+  !is.na(df$IR_1) & !is.na(df$IR_2) & !is.na(df$IR_3) & !is.na(df$IR_4) & !is.na(df$IR_5),
+  1,
+  0
+)
+
+head(df['take_exam'])
+```
+
+Za NA vrijednosti na IR, MI i ZI mi najviše smisla ima zamijeniti nulama jer je na ovom predmetu identično ne izaći na ispit i predati potpuno prazan ispit. Međutim, ovo će definitivno utjecati na deskriptivnu statistiku.
+
+```{r}
+df[is.na(df)] <- 0
+```
+
+
+### 3.2 Korelacijska analiza
+
+Razmotrimo studente koji su predmet položili kontinuirano. Izračunajte i vizualizirajte matricu korelacije za njihove bodove na nastavnim aktivnostima. Ponovite isto za studente koji su izašli na ispitni rok. Razmislite o zavisnosti različitih nastavnih aktivnosti koje vidite iz ovih korelacijskih matrica.
+
+```{r}
+#  Vaš kôd ovdje
+df_tmp = df[df$take_exam == 0,]
+
+# suma bodova > 50
+df_passed_cont = df_tmp[((df_tmp$LAB_1 + df_tmp$LAB_2) +
+  (df_tmp$MI_1 + df_tmp$MI_2 + df_tmp$MI_3 + df_tmp$MI_4 + df_tmp$MI_5) + 
+  (df_tmp$ZI_1 + df_tmp$ZI_2 + df_tmp$ZI_3 + df_tmp$ZI_4 + df_tmp$ZI_5)) >= 50,] 
+
+head(df_passed_cont)
+```
+
+
+```{r}
+library(ggplot2)
+library(ggcorrplot)
+
+ggcorrplot(
+  cor(df_passed_cont, method='pearson'),
+  type='lower',
+  digits=2,
+  lab=TRUE,
+)
+```
+Dio koji se odnosi na studente na ispitnom roku:
+
+```{r}
+#  Vaš kôd ovdje
+df_exam = df[df$take_exam == 1,] 
+
+head(df_exam)
+```
+
+```{r}
+ggcorrplot(
+  cor(df_exam, method='pearson'),
+  type='lower',
+  digits=1,
+  lab=TRUE,
+)
+```
+
+
+
+Prikažite upareni graf za zadatke s ispitnog roka. Na dijagonalama prikažite empirijsku distribuciju podataka, a na elementima izvan dijagonala prikažite grafove raspršenja za parove varijabli. Razmislite o karakteristikama grafova i razmislite postoje li primjeri koji odskaču od ostalih.
+
+```{r}
+library(GGally)
+library(plotly)
+
+ggpairs(df_exam, columns=c('IR_1', 'IR_2', 'IR_3', 'IR_4', 'IR_5'), progress=F)
+
+```
+
+### 3.3 Statistička udaljenost
+
+Izračunajte procjene vektora očekivanja i matrice kovarijance za zadatke s ispitnog roka, kao i statističke udaljenosti svih primjera u odnosu na procijenjeno očekivanje i kovarijancu. Ispitajte postoje li stršeće vrijednosti koje su statistički značajne. 
+
+```{r}
+df_exam_problems = df_exam[c('IR_1', 'IR_2','IR_3','IR_4','IR_5')]
+
+head(df_exam_problems)
+```
+
+```{r}
+mean_df = colMeans(df_exam_problems)
+cov_df = cov(df_exam_problems)
+
+print(mean_df)
+
+print(cov_df)
+```
+```{r}
+stat_dist = mahalanobis(df_exam_problems, mean_df, cov_df)
+distr <- pchisq(stat_dist, df=ncol(df_exam_problems), lower.tail=FALSE)
+
+print(length(stat_dist))
+print(length(stat_dist[distr > 0.01]))
+```
+
+
+## 4. Analiza podataka 
+
+### 4.1 Vizualizacija i deskriptivna statistika
+
+Analizirajte u podatcima sljedeća istraživačka pitanja, koristeći odgovarajuće vizualizacije i deskriptivne statistike ili druge tehnike (dodatno možete provesti i statistički test - nije obavezno).
+
+* Imaju li grupe utjecaj na ukupne bodove iz kontinuirane nastave (postoje li grupe koje su uspješnije od ostalih)? Vrijedi li isto za bodove na roku?
+
+```{r}
+# Vaš kôd ovdje
+
+# boxplot s grupama kont.
+
+sum_pts = df_passed_cont$MI_1 + df_passed_cont$MI_2 + df_passed_cont$MI_3 + df_passed_cont$MI_4 + 
+  df_passed_cont$MI_5 + df_passed_cont$ZI_1 + df_passed_cont$ZI_2 + df_passed_cont$ZI_3 +     
+  df_passed_cont$ZI_4 + df_passed_cont$ZI_5 + df_passed_cont$LAB_1 + df_passed_cont$LAB_2
+
+boxplot(sum_pts ~ df_passed_cont$Grupa,
+  xlab ="Group",
+  ylab = "Final points (cont.)",
+)
+
+# boxplot s grupama rok
+
+sum_pts2 = df_exam$IR_1 + df_exam$IR_2 + df_exam$IR_3 + df_exam$IR_4 + df_exam$IR_5
+
+boxplot(sum_pts2 ~ df_exam$Grupa,
+  xlab ="Group",
+  ylab = "Final points (exam)",
+)
+```
+
+* Postoji li povezanost između uspjeha studenata na međuispitu i završnom ispitu (vrijedi li da su uspješniji studenti na MI ujedno uspješniji i na ZI)?
+
+```{r}
+# Vaš kôd ovdje
+
+# sumirati sve mi zadatke, sve zi zadatke i scatter plottat
+df$mi <- df$MI_1 + df$MI_2 + df$MI_3 + df$MI_4 + df$MI_5
+df$zi <- df$ZI_1 + df$ZI_2 + df$ZI_3 + df$ZI_4 + df$ZI_5
+
+plot(df$mi,
+  df$zi, 
+  asp=1,
+  xlab='Midterm points',
+  ylab='Final points'
+)
+print(cor(df$mi, df$zi))
+
+```
+
+* Postoji li povezanost između uspjeha studenata na nekim zadatcima na ispitima i pojedinim laboratorijskim vježbama? Razmislite koji su mogući uzroci ovakvih zavisnosti, ako postoje.
+
+```{r}
+# Vaš kôd ovdje
+
+# scatterplot labosa i zadataka, eventualno korelacije
+
+plot(df$LAB_1, df$MI_1, asp=1)
+plot(df$LAB_1, df$MI_2, asp=1)
+plot(df$LAB_1, df$MI_3, asp=1)
+plot(df$LAB_1, df$MI_4, asp=1)
+plot(df$LAB_1, df$MI_5, asp=1)
+
+plot(df$LAB_2, df$MI_1, asp=1)
+plot(df$LAB_2, df$MI_2, asp=1)
+plot(df$LAB_2, df$MI_3, asp=1)
+plot(df$LAB_2, df$MI_4, asp=1)
+plot(df$LAB_2, df$MI_5, asp=1)
+
+
+
+plot(df$LAB_1, df$ZI_1, asp=1)
+plot(df$LAB_1, df$ZI_2, asp=1)
+plot(df$LAB_1, df$ZI_3, asp=1)
+plot(df$LAB_1, df$ZI_4, asp=1)
+plot(df$LAB_1, df$ZI_5, asp=1)
+
+plot(df$LAB_2, df$ZI_1, asp=1)
+plot(df$LAB_2, df$ZI_2, asp=1)
+plot(df$LAB_2, df$ZI_3, asp=1)
+plot(df$LAB_2, df$ZI_4, asp=1)
+plot(df$LAB_2, df$ZI_5, asp=1)
+
+
+
+plot(df_exam$LAB_1, df_exam$IR_1, asp=1)
+plot(df_exam$LAB_1, df_exam$IR_2, asp=1)
+plot(df_exam$LAB_1, df_exam$IR_3, asp=1)
+plot(df_exam$LAB_1, df_exam$IR_4, asp=1)
+plot(df_exam$LAB_1, df_exam$IR_5, asp=1)
+
+plot(df_exam$LAB_2, df_exam$IR_1, asp=1)
+plot(df_exam$LAB_2, df_exam$IR_2, asp=1)
+plot(df_exam$LAB_2, df_exam$IR_3, asp=1)
+plot(df_exam$LAB_2, df_exam$IR_4, asp=1)
+plot(df_exam$LAB_2, df_exam$IR_5, asp=1)
+
+
+
+print(cor(df$LAB_1, df[c('MI_1','MI_2','MI_3','MI_4','MI_5')]))
+print(cor(df$LAB_2, df[c('MI_1','MI_2','MI_3','MI_4','MI_5')]))
+
+print(cor(df$LAB_1, df[c('ZI_1','ZI_2','ZI_3','ZI_4','ZI_5')]))
+print(cor(df$LAB_2, df[c('ZI_1','ZI_2','ZI_3','ZI_4','ZI_5')]))
+
+print(cor(df_exam$LAB_1, df_exam[c('IR_1','IR_2','IR_3','IR_4','IR_5')]))
+print(cor(df_exam$LAB_2, df_exam[c('IR_1','IR_2','IR_3','IR_4','IR_5')]))
+```
+Većina kombinacija je slabo korelirana, jedine značajnije korelacije su kod kombinacija MI_1-LAB_1, ZI_1-LAB_2. Najviše smisla mi ima da su studenti dobili zadatak sličan tim laboratorijskim vježbama pa je otuda došla pozitivna korelacija.
+
+
+
+Postavite i analizirajte na ovaj način još barem jedno vlastito istraživačko pitanje.
+* Imaju li grupe utjecaj na uspjeh na laboratorijskim vježbama kod studenata koji su prošli kontinuirano? Čini se da baš i nemaju. Vrijednosti medijana su podjednake, čak i IQR raspon je vrlo sličan pa i raspon whiskera.
+
+```{r}
+# Vaš kôd ovdje
+
+# boxplot s grupama
+
+sum_pts_lab = df_passed_cont$LAB_1 + df_passed_cont$LAB_2
+
+boxplot(sum_pts_lab ~ df_passed_cont$Grupa,
+  xlab ="Group",
+  ylab = "Lab points",
+)
+
+```
+
+### 4.2. Regresijska analiza
+
+Razmotrimo u kakvom su odnosu zadatci ispitnog roka s ostalim aktivnostima iz kontinuirane nastave. Istražite odnos koristeći model multivarijatne linearne regresije. Procijenite model gdje su zavisne varijable bodovi zadataka s ispitnog roka, odaberite konačni skup ulaznih varijabli i provjerite adekvatnost modela.
+
+```{r}
+# Vaš kôd ovdje
+reg2 <- lm (IR_1 ~ MI_1 + MI_2 + MI_3, data=df)
+plot(reg2)
+
+reg <- lm(cbind(IR_1, IR_2, IR_3, IR_4, IR_5) ~ ., data=df)
+
+summary(reg)
+
+plot(reg)
+```

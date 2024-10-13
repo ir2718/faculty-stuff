@@ -1,0 +1,1214 @@
+---
+title: "Analiza antropometrijskih podataka američkih vojnih snaga"
+author: "Alen Kurtović, Marin Matjanec, Ivan Rep, Josip Šestak"
+date: "11/26/2020"
+output:
+  pdf_document:
+    toc: yes
+    number_sections: yes
+  html_document:
+    toc: yes
+    df_print: paged
+header-includes: \usepackage{mathrsfs}
+---
+\pagebreak
+
+```{r setup, results='hide', message=FALSE, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Uvod
+
+\indent{} Za ovu analizu koristiti ćemo skup podataka ANSUR II. Ovaj skup podataka opisuje razne mjere ljudskog tijela i pojedinih njegovih segmenata. Uz neke uobičajene mjere kao što su visina, težina, dob i indeks tjelesne mase(BMI), pojavljuju se i manje poznate veličine. Neke od njih su npr. opseg prsa, opseg gležnja, širina uha ili visina od poda do ručnog zgloba. Osim primjena u medicini, ove mjere koriste se u dizajnu proizvoda, ergonomiji, forenzici i antropologiji.      
+
+\indent{} Konkretno, u skupu se nalaze podaci za 6068 osoba sakupljenih od 2010. do 2012. godine u raznim američkim vojničkim kampovima. Podaci sadrže 107 značajki koje se mogu podijeliti u općenite značajke i antropometrijske značajke.
+
+```{r echo=FALSE, results='hide', message=FALSE, warning=FALSE}
+# Učitavanje podataka
+library(readr, quietly = TRUE )
+data <- read_csv("ANSUR_II_data.csv")
+
+# Učitavanje boja koje se koriste
+blue <- "#3CAEA3"
+brown <- "#B1624EFF"
+```
+
+
+# Deskriptivna analiza nekih općenitih značajki
+
+## Dob vojnika
+
+Jedna općenita značajka koja nas može zanimati je dob vojnika. Prvo što se može provjeriti je ispravnost unesenih podataka. Sljedeći odsječak prikazuje tip varijable i koliko vrijednosti varijable "Age" nije dostupno:
+
+```{r}
+age <- data$Age
+
+# Tip varijable
+cat("Type of variable: ",class(age) )
+
+# Broj redaka s vrijednosti NA
+countNaValues <- function( values ) { 
+  cat("Number of NA values: ",sum(is.na(values)),"\n") }
+
+countNaValues(age)
+
+```
+### Vizualizacija dobi {-}
+
+Razumno je razmišljati da u vojsci prevladavaju mlađi ljudi, a da je znatno manje zrelih i starijih ljudi zbog naglašene potrebne fizičke spremnosti. Korisno je vizualizirati ovakve podatke, pa se može pogledati kako izgleda histogram i pravokutni dijagram:
+
+```{r figures-side, fig.show="hold", out.width="50%"}
+# Histogram
+hist(age,
+     breaks=15,
+     main="Soldier's age histogram",
+     xlab="Age in years",
+     ylab='Frequency' )
+
+# Pravokutni dijagram
+boxplot(age,
+        main="Box and whisker plot for age",
+        ylab="Age" )
+```
+Iz histograma možemo tvrditi da je stvarna situacija onakva kakvu smo pretpostavili i vidimo da je distribucija desno zakrivljena.  
+
+Na gornjem rubu možemo uočiti nekoliko vrijednosti koje su izvan izdanaka. Njih nazivamo outlieri i one ukazuju da je moguće da je došlo do neke pogreške prilikom prikupljanja. U ovom kontekstu ima smisla da te vrijednosti nisu krive jer je razumno da postoji manji broj starijih ljudi koji obnašaju neke visoke činove u vojsci. Zbog toga ih nismo izbacivali iz skupa.
+
+
+### Mjere centra {-}
+
+Možemo odrediti i neke mjere centra za dob vojnika. Pošto je distribucija zakrivljena, dobre mjere centra su medijan i podrezana aritmetička sredina. Njihove vrijednosti i vrijednosti ostalih mjera centra glase:
+
+```{r include=FALSE}
+# Asimetrija
+library(e1071) 
+cat("Skewness: ",skewness(age),"\n")
+
+# Medijan
+cat("Median: ",median(age),"\n")
+
+# Podrezana aritmetička sredina s uklanjanjem po 10% najmanjih i najvecih podataka
+cat("10% trimmed mean: ", mean(age, trim=0.1), "\n")
+
+# Aritmeticka sredina
+cat("Mean: ",mean(age),"\n")
+
+# Mod
+require(modeest)
+cat("Mod: ",mfv(age),"\n")
+```
+
+Koeficijent asimetrije je pozitivan i možemo uočiti da su ostali podaci poredani od najmanjeg prema najvećem na sljedeći način: mod, medijan, podrezana aritmetička sredina, aritmetička sredina. Ovakve vrijednosti i odnosi se i očekuju upravo zbog desne zakrivljenosti. 
+
+### Mjere rasipanja {-}
+
+Sljedeće pitanje vezano za ovu značajku koje se može promatrati jest rasipanje. Iz histograma se može dobiti privid u izgled distribucije i utvrditi da je distribucija desno zakrivljena. U ovom slučaju, najbolja mjera rasipanja je IQR zbog svoje robusnosti:
+
+```{r}
+# Rang
+cat("Range: ",max(age)-min(age),"\n")
+
+# IQR
+cat("IQR: ",IQR(age),"\n")
+
+# Varijanca
+cat("Variance: ",var(age),"\n")
+
+# Standardna devijacija
+cat("Standard deviation: ",sd(age),"\n")
+
+# Koeficijent varijacije
+cat("Variation coefficient: ",sd(age)/mean(age),"\n")
+```
+Iz ranga se može zaključiti da je razlika između najmlađeg i najstarijeg vojnika 41 godina, a $IQR$ daje predodžbu gdje se nalazi 50% podataka. Varijanca i standardna devijacija koje su ovdje izračunate zapravo su nepristrane procjene za varijancu i standardnu devijaciju.
+
+## Spol vojnika 
+
+Zanimanje vojnika se smatra muškim zanimanjem pa se i to može provjeriti u ovom skupu podataka. Prije svega potrebno je provjeriti ispravnost podataka. Varijabla spola može poprimiti samo dvije vrijednosti ili biti nedostupna:
+
+```{r}
+gender <- data$Gender
+
+# Dostupnost podataka
+countNaValues(gender)
+
+# Tip varijable
+cat("Type of variable: ",class(gender),"\n")
+
+# Pretvorba podatka iz character u factor
+gender <- factor(gender)
+cat("Type of variable after change; ",class(gender),"\n")
+
+# Koliko ima žena u skupu
+females <- length(which(gender=="Female"))
+cat("Number of females: ",females,"\n")
+
+# Koliko ima muškaraca u skupu
+males <- length(which(gender=="Male"))
+cat("Number of males: ",males,"\n")
+
+# Je li broj mušakaraca i žena jednak ukupnom broju ljudi u skupu
+all <- length(gender)
+cat("Number of females and males equal to the whole set: ",males + females == all,"\n")
+
+```
+
+
+
+
+## Etnicitet vojnika
+
+Varijabla koja predstavlja narodnost vojnika je etnicitet. Kao i inače, potrebno je provjeriti dostupnost podataka i njihov tip:
+
+```{r echo=FALSE}
+ethnicities <- data$Ethnicity
+
+# Dostupnost podataka
+countNaValues( ethnicities  )
+
+# Ostali podaci
+cat("Amount of non NA values: ",length( ethnicities ) - sum(is.na(ethnicities)),"\n" )
+```
+S ovom varijablom postoji problem, a to je da ima 4647 nedostupnih podataka. To je velik dio skupa podataka, pa se ne može provoditi deskriptivna analiza nad ovom varijablom.
+
+# Deskriptivna analiza antropometrijskih značajki
+
+## Visina vojnika
+
+Jedna od osnovnih antropometrijskih značajki je visina. Prvo se provjerava ispravnost i pretvaraju podaci u centimetre:
+
+```{r echo=FALSE}
+heights <- data$stature/10
+
+# Provjera dostupnosti
+countNaValues(heights)
+
+# Provjera tipa
+cat("Type of variable: ",class(heights),"\n")
+
+# Prvih nekoliko redaka
+cat("Height after conversion to cm: ",head(heights),"\n")
+```
+
+### Vizualizacija visine {-}
+
+Poslije ovoga mogu se vizualizirati podaci histogramom:
+
+```{r echo=FALSE, fig.show="hold", out.width="50%"}
+# Histogram
+hist(heights,
+     main="Soldier's height in centimeters histogram",
+     xlab="Height (cm)",
+     ylab='Frequency' )
+
+
+
+# Pravokutni dijagram
+boxplot(heights,
+        main="Box and whisker plot for height",
+        ylab="Height (cm)" )
+```
+
+```{r}
+# Kvantili
+cat("Quantiles:\n")
+quantile(heights)
+
+```
+
+Može se uočiti da je distribucija nalik normalnoj. Postoji i nekoliko ekstremnih vrijednosti. 
+Pravokutni dijagram pokazuje i prisutnost mogućih outliera.
+
+### Mjere centra visine {-}
+
+Pošto distribucija nije zakrivljena očekuje se da će medijan, srednja vrijednost i mod biti podjednakih vrijednosti. Mogu se provjeriti te mjere za ovu varijablu.
+
+```{r echo=FALSE}
+# Aritmetička sredina
+cat("Mean: ",mean(heights),"\n")
+
+# Medijan
+cat("Median: ",median(heights),"\n")
+
+# Mod
+cat("Mod: ",mfv(heights),"\n")
+```
+Izračunate vrijednosti su blizu kao što se i očekuje.
+
+### Mjere rasipanja visine {-}
+
+Također, zbog simetričnosti distribucije dobru predodžbu varijabilnosti distribucije predstavlja standardna devijacija. Uz to može se i izračunati rang, IQR, varijanca i koeficijent varijacije. 
+
+```{r echo=FALSE}
+# Rang
+cat("Range: ",max(heights)-min(heights),"\n")
+
+# IQR
+cat("IQR: ",IQR(heights),"\n")
+
+# Varijanca
+cat("Variance: ",var(heights),"\n")
+
+# Standardna devijacija
+cat("Standard deviation: ",sd(heights),"\n")
+
+# Koeficijent varijacije
+cat("Variation coefficient: ",sd(heights)/mean(heights),"\n")
+```
+
+### Usporedba spola i visine {-}
+
+Ono što se nije uzimalo u obzir dosad je spol, a to je značajka koja gotovo sigurno utječe na distribuciju. Uzme li se to u obzir i može se istražiti kako se ponaša visina muškaraca i visina žena:
+
+
+```{r}
+# Visine svih muškaraca u centimetrima
+maleHeights <- data[data$Gender=="Male",]$stature/10
+
+# Visine svih žena u centimetrima
+femaleHeights <- data[data$Gender=="Female",]$stature/10
+```
+
+Ova varijabla može se grafički prikazati i mogu se odrediti njene numeričke karakteristike:
+
+```{r fig.show="hold", out.width="50%"}
+# RGB polje za plavu boju
+rgbArr <- col2rgb(blue)/255
+col1 <- rgb(rgbArr[1],  rgbArr[2],  rgbArr[3],  0.5)
+
+# Histogram - visina i spol muškaraca
+hist(maleHeights,
+     breaks=20,
+     main="Soldier's height in centimeters and gender histogram",
+     xlab="Height (cm)",
+     ylab='Frequency',
+     col=col1)
+
+# RGB polje za smeđu boju
+rgbArr2 <- col2rgb(brown)/255
+col2 <- rgb(rgbArr2[1],  rgbArr2[2],  rgbArr2[3],  0.5)
+
+# Histogram - visina i spol žena
+hist(femaleHeights,
+     breaks=15,
+     col=col2,
+     add=T)    # Parametar koji postavlja drugi histogram na plot prvoga
+
+# Legenda za spol - histogram
+legend("topleft",
+       inset=.05,
+       title="Gender",
+       legend=c("Male","Female"),
+       fill=c(col1,col2))
+
+# Pravokutni dijagram -  visina i spol
+boxplot(data$stature/10 ~ Gender,
+        data=data,
+        xlab ="Gender ",
+        ylab = "Height (cm)",
+        main = "Soldier's height in centimeters and gender box plot",
+        col = c(brown, blue))
+
+# Legenda za spol - pravokutni dijagram
+legend("topleft",
+       inset=.05,
+       title="Gender",
+       legend=c("Male","Female"),
+       fill=c(blue, brown) )
+
+# Numeričke karakteristike - muška visina
+cat( "Mean (male): ", mean(maleHeights),"\n") 
+cat( "Standard deviation (male): ",sd(maleHeights),"\n") 
+
+# Numeričke karakteristike - ženska visina
+cat( "Mean (female): ", mean(femaleHeights),"\n") 
+cat( "Standard deviation (female): ",sd(femaleHeights),"\n") 
+
+
+```
+
+Može se vidjeti da su se rezultati promijenili podjelom u pojedini spol. Možemo vidjeti da je prosjek visine muškaraca veći od prosjeka visine žena, dok je varijabilnost obje grupe podjednaka. Važno je spomenuti da varijabla spola ne mora nužno uzrokovati ovu promjenu. Postoji mogućnost da neka skrivena varijabla zapravo uzrokuje ovu promjenu.
+
+
+## Težina vojnika
+
+Druga antropometrijska značajka koja se može obraditi je težina. Naputak na web stranici ovog dataseta kaže da su podaci u hektogramima unatoč nazivu. Potrebno je provjeriti ispravnost podataka i pretvoriti podatke u kilograme.
+
+```{r echo=FALSE}
+weights <- data$weightkg
+
+# Provjera dostupnosti
+countNaValues(weights)
+
+# Provjera tipa
+cat( "Type of variable: ",class(weights),"\n")
+
+# Pretvorba hektograma u kilograme
+weights <- weights/10
+
+# Prvih nekoliko redaka
+cat("Weight after conversion to kg: ", head(weights),"\n")
+
+```
+### Vizualizacija težine {-}
+
+Poslije ovoga možemo vizualizirati podatke histogramom i pravokutnim dijagramom:
+
+```{r echo=FALSE, fig.show="hold", out.width="50%"}
+# Histogram
+hist(weights,
+     breaks=30,
+     main="Soldier's weights in kilograms histogram",
+     xlab="Weight (kg)",
+     ylab='Frequency' )
+
+# Pravokutni dijagram
+
+boxplot(weights,
+        main="Box and whisker plot for weight",
+        ylab="Weight (kg)")
+
+```
+
+Može se uočiti da je distribucija nalik normalnoj.
+
+### Mjere centra težine {-}
+
+Kao i u slučaju s visinom, distribucija je simetrična pa se očekuje da će medijan, srednja vrijednost i mod biti podjednakih vrijednosti.
+
+```{r echo=FALSE} 
+# Aritmetička sredina
+cat("Mean: ",mean(weights),"\n")
+
+# Medijan
+cat("Median: ",median(weights),"\n")
+
+# Mod
+cat("Mod: ",mfv(weights),"\n")
+```
+
+Izračunate vrijednosti su podjednakih iznosa.
+
+### Mjere rasipanja težine {-}
+
+Mogu se i izračunati mjere varijabilnosti za ovu varijablu npr. rang, IQR, varijanca, standardna devijaciju i koeficijent varijacije. 
+
+```{r echo=FALSE}
+# Rang
+cat("Range: ",max(weights)-min(weights),"\n") 
+
+# IQR
+cat("IQR: ",IQR(weights),"\n")
+
+# Varijanca
+cat("Variance: ",var(weights),"\n")
+
+# Standardna devijacija
+cat("Standard deviation: ",sd(weights),"\n")
+
+# Koeficijent varijacije
+cat("Variation coefficient: ",sd(weights)/mean(weights),"\n")
+```
+
+### Usporedba spola i težine {-}
+
+Jednako kao u slučaju s visinom, ovdje nije uzet u obzir spol vojnika. Kada se to uzme u obzir podaci izgledaju drukčije, a i numeričke karakteristike se mijenjaju.
+
+```{r echo=FALSE, fig.show="hold", out.width="50%"}
+# Težine svih muškaraca u centimetrima
+maleWeights <- ( data[data$Gender=="Male", ] )$weightkg/10
+
+# Težine svih žena u centimetrima
+femaleWeights <- ( data[data$Gender=="Female", ] )$weightkg/10
+
+
+# Histogram - težina i spol
+hist(maleWeights,
+     breaks=15,
+     main="Soldier's weight in kilograms and gender histogram",
+     xlab="Weight (kg)",
+     ylab='Frequency',
+     col=col1)
+
+hist(femaleWeights,
+     breaks=15,
+     col=col2,
+     add=T)
+
+# Legenda za boje
+legend("topleft",
+       inset=.05,
+       title="Gender",
+       legend=c("Male","Female"),
+       fill=c(col1,col2))
+
+
+
+
+
+# Pravokutni dijagram -  visina i spol
+boxplot(data$weightkg/10 ~ Gender,
+        data=data,
+        xlab="Gender",
+        ylab = "Weight (kg)",
+        main = "Soldier's weight in kilograms and gender box plot",
+        col = c(brown, blue))
+
+legend("topleft",
+       inset=.05,
+       title="Gender",
+       legend=c("Male","Female"),
+       fill=c(blue, brown) )
+
+
+# Numeričke karakteristike - muška težina
+cat("Mean (male): ",mean(maleWeights),"\n") 
+cat("Standard deviation (male): ",sd(maleWeights),"\n")
+cat("IQR (male): ",IQR(maleWeights),"\n")
+
+# Numeričke karakteristike - ženska težina
+cat("Mean (female): ",mean(femaleWeights),"\n") 
+cat("Standard deviation (female): ",sd(femaleWeights),"\n")
+cat("IQR (female): ",IQR(femaleWeights),"\n")
+
+```
+Kao i u slučaju s visinom može se uočiti da je došlo do promjena u numeričkim karakteristikama i izgledu podataka. Žene imaju manju prosječnu kilažu, dok muškarci imaju veću prosječnu kilažu, a varijabilnost muške kilaže je nešto veća. To se može i potvrditi pomoću interkvartilnog ranga koji je također veći kod muškaraca.
+
+
+## Raspon ruku vojnika
+
+U skupu podataka se nalaze vojnici iz nekoliko vojnih kampova u SAD-u. Može se provjeriti koji su to uopće kampovi, kako su zastupljeni i vizualizirati podatke:
+
+```{r fig.align="center", out.width="50%"}
+# Provjera dostupnosti svih podataka
+countNaValues(data$Installation)
+cat("Type of variable: ",class(data$Installation),"\n")
+
+cat("Camps:\n")
+unique(data$Installation)
+
+# Pretvorba u factor
+installations <-  factor(data$Installation)
+cat("Type of variable after conversion: ",class(installations),"\n")
+camps <- table(sort(installations))
+
+
+# Stupičasti dijgram
+barplot( sort(camps, decreasing=TRUE), 
+         main="Amounts of soldiers in different camps",
+         ylab="Number of soldiers",
+         las=2)
+
+```
+
+
+Zbog malog broja testiranih ljudi iz kampa Fort Rucker nad njima nećemo testirati hipoteze.
+
+Kod dizajna proizvoda mogao bi se koristiti raspon ruku vojnika. To možemo iskoristiti da npr. odredimo dužine rukava na uniformama za veličinu muške ili ženske uniforme. Može se pogledati kako se ponaša ova varijabla.
+
+```{r echo=FALSE, fig.show="hold", out.width="50%"}
+hist( data[data$Gender=="Male", ]$span/10,
+     main="Male soldier's arm span histogram",
+     xlab="Arm span (cm)",
+     ylab="Frequncy",
+     col=c(blue) )
+
+
+hist(data[data$Gender=="Female", ]$span/10,
+     main="Female soldier's arm span histogram",
+     xlab="Arm span (cm)",
+     ylab="Frequncy",
+     col=c(brown) )
+
+```
+
+Zatim se može provjeriti postoji li neki kamp koji odstupa. Za njega je onda potrebno napraviti uniforme drukčijih veličina od ostalih kampova npr. može se ispitati razlikuje li se raspon ruku između kampova Camp Shelby i Fort Bliss.
+
+
+
+
+# ANOVA 
+
+## Opseg glave vojnika
+
+Može nas zanimati i je li raspršenje varijable opsega glave jednako u svim kampovima. Ova varijabla bi se mogla koristiti pri dizajnu kaciga za američku vojsku. Za ovo se može koristiti analiza varijance. Pretpostavke koje je potrebno zadovoljiti za ovo su: nezavisnost pojedinih podataka u uzorcima, normalna razdioba podataka i homogenost varijanci među populacijama. Nezavisnost podataka može se tvrditi jer potječu iz različitih kampova. U nastavku su prikazani histogrami kako bi se utvrdila normalnost podataka pa zatim pravokutni dijagram. Zbog vrlo malog broja ispitanih u kampu Fort Rucker izbaciti ćemo ga iz skupa podataka za ovaj test. 
+
+### Vizualizacija opsega glave {-}
+
+```{r echo=FALSE, fig.show="hold", out.width="32%"}
+createHistForInstallation <- function( name, showName ) {
+  hist(data[data$Installation==name,]$headcircumference/10,
+     main=showName,
+     xlab ="Head circumference (cm)",
+     cex.main = 1.5) }
+
+createHistForInstallation("Camp Atterbury", "Atterbury")
+createHistForInstallation("Camp Shelby", "Shelby")
+createHistForInstallation("Fort Bliss", "Bliss")
+createHistForInstallation("Fort Bragg", "Bragg")
+createHistForInstallation("Fort Drum", "Drum")
+createHistForInstallation("Fort Gordon", "Gordon")
+createHistForInstallation("Fort Hood", "Hood")
+createHistForInstallation("Fort Huachuca", "Huachuca")
+createHistForInstallation("Fort Lee", "Lee")
+createHistForInstallation("Fort McCoy", "McCoy")
+createHistForInstallation("Fort Stewart", "Stewart")
+```
+```{r  fig.align="center", out.width="50%"}
+headCircNoRucker <- data[data$Installation!="Fort Rucker",]$headcircumference/10
+installationNoRucker <- factor(data[data$Installation!="Fort Rucker",]$Installation)
+
+boxplot(headCircNoRucker ~ installationNoRucker,
+        main = "Box plot for head circumference and camp",
+        ylab = "Head circumference (cm)",
+        xlab = "", las = 2, cex.axis = 0.71)
+```
+
+### Homogenost varijance {-}
+
+Postave se hipoteze za jednakost varijanci:
+
+$$1) \quad H_0: \quad \sigma^2_1 = \sigma^2_2 = \ ... \ = \sigma^2_{11}$$
+$$2) \quad H_1:  \quad \neg H_0$$
+$$3) \quad \alpha = 0.05$$
+Jednakost varijanci može se testirati pomoću Bartlettovog testa.
+
+```{r}
+bartlett.test(headCircNoRucker ~ installationNoRucker)
+```
+
+P-vrijednost je vrlo mala, ali skup podataka je velik, na dijagramu raspršenja varijance se ne razlikuju puno i ANOVA je vrlo robusna metoda na svoje pretpostavke pa se test može nastaviti.
+
+### ANOVA test {-}
+
+ANOVA hipoteze:
+
+$$1) \quad H_0: \quad \mu_1 = \mu_2 = \ ... \ = \mu_{11}$$
+$$2) \quad H_1: \quad  barem \ jedan \ \mu_k \ se \ razlikuje \ od \ ostalih  $$
+$$k \in \{1, ..., 11\}$$
+$$3) \quad \alpha = 0.05$$
+
+```{r}
+summary(aov(headCircNoRucker ~ installationNoRucker))
+```
+
+Mala p-vrijednost pokazuje da se odbija hipoteza $H_0$ u korist hipoteze $H_1$.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Testiranje hipoteza
+
+## Je li raspon ruku muškaraca u različitim kampovima jednak?
+
+$$1) \quad H_0 \quad \dots \quad  Raspon \ ruku \ muškaraca \ u \ kampu \ Fort \ Shelby \ jednak \ je \ onome \ u \ kampu \ Fort \ Bliss$$ $$ \mu_1 = \mu_2, \ d_0=0$$
+$$2) \quad H_1 \quad \dots \quad  Raspon \ ruku \ muškaraca \ u \ kampu \ Fort \ Shelby \ nije \ jednak \ onome \ u \ kampu \ Fort \ Bliss$$ $$\mu_1 \neq \mu_2, \ d_0 \neq 0$$
+$$3) \quad \alpha=0.05  $$
+
+
+Za provesti ovaj test potrebne su numeričke karakteristike ovih varijabli:
+```{r fig.show="hold", out.width="50%"}
+campShelbyMaleSpan <- data[ data$Installation=="Camp Shelby" & data$Gender=="Male", ]$span/10
+fortBlissMaleSpan <- data[ data$Installation=="Fort Bliss" & data$Gender=="Male", ]$span/10
+
+# Aritmetičke sredine
+cat("Mean (Camp Shelby): ",mean(campShelbyMaleSpan),"\n")
+cat("Mean: (Fort Bliss)",mean(fortBlissMaleSpan),"\n")
+
+# Standardne devijacije
+cat("Standard deviation (Camp Shelby): ",sd(campShelbyMaleSpan),"\n")
+cat("Standard deviation (Fort Bliss): ",sd(fortBlissMaleSpan),"\n")
+
+# QQ plot muški raspon - Camp Shelby
+qqnorm(campShelbyMaleSpan, pch = 1, frame = FALSE,main='Shelby camp male arm span')
+qqline(campShelbyMaleSpan, col = blue, lwd = 2)
+
+# QQ plot muški raspon - Fort Bliss
+qqnorm(fortBlissMaleSpan, pch = 1, frame = FALSE,main='Fort Bliss male arm span')
+qqline(fortBlissMaleSpan, col = blue, lwd = 2)
+
+```
+
+Iz ispisa se vidi da postoje pokazatelji da nisu jednaki, no svejedno se može provesti test. Može se uočiti da su standardne devijacije podjednake. Nezavisnost ovih uzoraka može se pretpostaviti jer potječu iz različitih kampova, a normalnost se može pretpostaviti jer se podaci poklapaju s QQ plotom. Još se može provesti test o varijancama da bi provjerili njihovu jednakost:
+
+$$1) \quad H_0 \quad \dots \quad  Varijance \ distribucija \ se \ ne \ razlikuju$$ $$ \sigma_1 = \sigma_2$$
+$$2) \quad H_1 \quad \dots \quad  Varijance \ distribucija \ se \ razlikuju$$ $$ \sigma_1 \neq \sigma_2$$
+$$3) \quad \alpha = 0.05$$
+
+```{r}
+var.test(campShelbyMaleSpan, fortBlissMaleSpan)
+```
+Iz ovog rezultata može se zaključiti da se ne odbacuje hipoteza $H_0$ koja glasi da su varijance jednake jer je p-vrijednost vrlo velika.
+
+Sada se može nastaviti s početnim testom:
+```{r}
+t.test(campShelbyMaleSpan, fortBlissMaleSpan, alt = "two.sided", var.equal = TRUE)
+```
+
+Iz ovog ispisa može se zaključiti da je p-vrijednost izrazito mala. Zbog toga je potrebno odbaciti hipotezu $H_0$ u korist $H_1$ i reći da na ovoj razini značajnosti sredine ovih populacija nisu jednake.
+
+
+## Je li raspon ruku žena u različitim kampovima jednak?
+
+Ovaj test može se provesti i u kampovima Fort Lee i Fort McCoy na rasponu ruku žena.
+
+```{r echo=FALSE}
+fortMccoyFemaleSpan <- data[ data$Installation=="Fort McCoy" & data$Gender=="Female", ]$span/10
+fortLeeFemaleSpan <- data[ data$Installation=="Fort Lee" & data$Gender=="Female", ]$span/10
+
+cat("Mean (Fort McCoy): ",mean(fortMccoyFemaleSpan),"\n")
+cat("Mean (Fort Lee): ",mean(fortLeeFemaleSpan),"\n")
+
+cat("Standard deivation (Fort McCoy): ",sd(fortMccoyFemaleSpan),"\n")
+cat("Standard deviation (Fort Lee): ",sd(fortLeeFemaleSpan),"\n")
+```
+
+Vidi se da su aritmetičke sredine vrlo blizu, no varijance se u manjoj mjeri razlikuju. Provede li se test o jednakosti varijanci može se saznati nešto više o tome. Postave se hipoteze:
+$$1) \quad H_0 \quad \dots \quad  Varijance \ distribucija \ se \ ne \ razlikuju$$ $$ \sigma_1 = \sigma_2$$
+$$2) \quad H_1 \quad \dots \quad  Varijance \ distribucija \ se \ razlikuju$$ $$ \sigma_1 \neq \sigma_2$$
+$$3) \quad \alpha = 0.05$$
+
+```{r echo=FALSE}
+var.test(fortMccoyFemaleSpan, fortLeeFemaleSpan)
+```
+Iz ispisa se može zaključiti da se na zadanoj razini značajnosti ne može odbiti hipoteza $H_0$ da su varijance populacija jednake.
+
+Zatim se provodi isti test kao i u slučaju s muškarcima iz kampova Fort Bliss i Camp Shelby. Pretpostavka nezavisnosti vrijedi zbog različitosti kampova pa se još provjerava vrijedi li pretpostavka normalnosti.
+
+```{r echo=FALSE, fig.show="hold", out.width="50%"}
+qqnorm(fortMccoyFemaleSpan, pch = 1, frame = FALSE,main='Fort McCoy female arm span')
+qqline(fortMccoyFemaleSpan, col = blue, lwd = 2)
+
+qqnorm(fortLeeFemaleSpan, pch = 1, frame = FALSE,main='Fort Lee female arm span')
+qqline(fortLeeFemaleSpan, col = blue, lwd = 2)
+```
+
+Ovo potvrđuje i pretpostavku normalnosti pa se postave hipoteze i odredi razina značajnosti:
+
+$$1) \quad H_0 \quad \dots \quad  Raspon \ ruku \ žena \ u \ kampu \ Fort \ McCoy \ jednak \ je \ rasponu \ ruku \ žena \ u \ kampu \ Fort \ Lee $$ $$\mu_1 = \mu_2, \ d_0=0$$
+
+$$2) \quad H_1 \quad \dots \quad  Raspon \ ruku \ žena \ u \ kampu \ Fort \ McCoy \ nije \ jednak \ rasponu \ ruku \ žena \ u \ kampu \ Fort \ Lee $$ $$\mu_1 \neq \mu_2, \ d_0 \neq 0$$
+
+$$3) \quad \alpha=0.05  $$
+
+```{r echo=FALSE}
+t.test(fortMccoyFemaleSpan, fortLeeFemaleSpan, alt = "two.sided", var.equal = TRUE)
+```
+Na zadanoj razini značajnosti ne odbija se hipoteza $H_0$ koja kaže da je raspon ruku žena u kampu Fort McCoy jednak rasponu ruku žena u kampu Fort Lee što potvrđuje vrlo velika p-vrijednost.
+
+
+## Utječe li rasa na pripadnost grani vojske?
+
+U američkim vojnim snagama je prisutan širok raspon rasa zbog mnogih seoba koje su se dogodile na tom području. Osim bijelaca i crnaca česti su latinoamerikanci i azijati. Može se provjeriti koje su uopće rase i grane vojske sadržane u skupu podataka:
+
+```{r}
+races <- as.factor(data$DODRace)
+branches <- as.factor(data$Branch)
+
+cat("Race codes: ",levels(races),"\n")
+cat("Branches: ",levels(branches),"\n")
+
+raceSums <- table(races)
+branchSums <- table(branches)
+
+contingencyTable <- table(races, branches)
+contingencyTable
+```
+U gornjem ispisu vide se svi mogući kodove za rase, sve moguće grane vojske i kontingencijska tablica za te dvije varijable.
+
+Još je potrebno provjeriti frekvencije razreda. Svi razredi moraju imati frekvenciju veću ili jednaku 5 što ovdje nije zadovoljeno. Pripadnike iz rase 8 ćemo dodati u rasu 6:
+
+```{r}
+newRowSix <- contingencyTable[ races="8", ] + contingencyTable[ races="6", ] 
+
+contingencyTable <- contingencyTable[!(row.names(contingencyTable) %in% c('8', '6')), ]
+contingencyTable <- rbind(contingencyTable, "6"=newRowSix)
+contingencyTable
+```
+
+Postave se hipoteze i razina značajnosti:
+$$1) \quad H_0 \quad \dots \quad  Pripadnost \ određenoj \ rasi \ i \ pripadnost \ grani \ vojske \ su \ nezavisna \ obilježja $$ $$ o_{ij} = e_{ij}, \quad \ \forall \ i \in \{ 1\  ,  \dots, \ 6 \}, \ j \in  \{ 1\, \dots,\ 3 \} $$
+$$2) \quad H_1 \quad \dots \quad  Pripadnost \ određenoj \ rasi \ i \ pripadnost \ grani \ vojske \ nisu \ nezavisna \ obilježja $$  $$ o_{ij} \neq e_{ij}, \quad \exists \ i \in \{1\  , \dots, \ 6 \},  \ j \in  \{ 1\, \dots,\ 3 \}  $$
+$$3) \quad \alpha = 0.05$$
+
+Sad se može provesti $\chi^2$ test:
+
+```{r}
+chisq.test(contingencyTable)
+```
+
+Iz vrlo male p-vrijednosti može se zaključiti da se hipoteza $H_0$ odbija u korist hipoteze $H_1$.
+
+
+\newpage
+
+## Imaju li dešnjaci veći opseg desnog bicepsa od ljevaka?
+
+Logično je da vojnici dešnjaci imaju veći desni biceps jer češće koriste tu ruku. Prvo se provjerava postojanje nedostupnih vrijednosti i filtriraju podaci.
+
+```{r}
+males <- data[data$Gender=="Male",]
+
+rightRBicep <- males[males$WritingPreference=="Right hand",]$bicepscircumferenceflexed/10
+cat("Right handed:\n")
+countNaValues(rightRBicep)
+
+
+leftRBicep <- males[males$WritingPreference=="Left hand",]$bicepscircumferenceflexed/10
+cat("Left handed:\n")
+countNaValues(leftRBicep)
+
+ambiRBicep <-males[males$WritingPreference=="Either hand (No preference)",]$bicepscircumferenceflexed/10
+cat("Ambidextrous:\n")
+countNaValues(ambiRBicep)
+```
+
+Zatim se grafički prikažu podaci da se vidi ravnaju li se distribucije prema normalnoj razdiobi.
+
+```{r echo=FALSE, fig.show="hold", out.width="50%"}
+qqnorm(rightRBicep, pch = 1, frame = FALSE,main='Right handed right biceps circumference in centimeters')
+qqline(rightRBicep, col = blue, lwd = 2)
+
+
+qqnorm(leftRBicep, pch = 1, frame = FALSE,main='Left handed right biceps circumference in centimeters')
+qqline(leftRBicep, col = blue, lwd = 2)
+
+qqnorm(ambiRBicep, pch = 1, frame = FALSE,main='Ambidextrous right biceps circumference in centimeters')
+qqline(ambiRBicep, col = blue, lwd = 2)
+```
+
+Za prve dvije distribucije može se pretpostaviti normalnost, no vidi se da treća odstupa. 
+Nezavisnost između svih grupa se pretpostavlja jer se radi o različitim grupama ljevaka, dešnjaka i ambidekstrenih vojnika. Mogu se izračunati mjere centra i raspršenja:
+
+```{r echo=FALSE}
+cat("Mean (Right Handed) :",mean(rightRBicep),"\n")
+cat("Mean (Left Handed) :",mean(leftRBicep),"\n")
+cat("Mean (Ambidextrous) :",mean(ambiRBicep),"\n")
+
+cat("Standard deviation (Right Handed) :",sd(rightRBicep),"\n")
+cat("Standard deviation (Left Handed) :",sd(leftRBicep),"\n")
+cat("Standard deviation (Ambidextrous) :",sd(ambiRBicep),"\n")
+```
+
+Postoje pokazatelji da opseg bicepsa dešnjaka premašuje opseg bicepsa ljevaka, pa i ambidekstrenih vojnika. Zatim se može provesti test za grupe dešnjaka i ljevaka. Prvo je potrebno provjeriti jednakost varijanci pomoću F testa koji smijemo koristiti zbog pretpostavki normalnosti i nezavisnosti:
+$$1) \quad H_0 \quad \dots \quad Varijance \ su \ jednake $$ $$\sigma_1 = \sigma_2 $$
+$$2)  \quad H_1 \quad \dots \quad Varijance \ se \ razlikuju $$ $$ \sigma_1 \neq \sigma_2    $$
+$$3) \quad \alpha = 0.05$$
+
+```{r echo=FALSE}
+var.test(rightRBicep, leftRBicep )
+```
+
+Na razini značajnosti od $\alpha=0.05$ odbija se hipoteza $H_0$ o jednakosti varijanca u korist alternative $H_1$. 
+
+Iz ovoga se može zaključiti da je prikladan T test s nejednakim varijancama. Postave se hipoteze i provede test:
+
+
+$$1) \quad H_0 \quad \dots \quad Opseg \ desnog \ bicepsa \ dešnjaka \ je \ jednak \ opsegu \ desnog \ bicepsa \ ljevaka $$ $$ \mu_1 = \mu_2, \quad d_0=0 $$
+$$2)  \quad H_1  \quad \dots \quad Opseg \ desnog \ bicepsa \ dešnjaka \ je \ veći \ od \ desnog \ bicepsa \ ljevaka $$ $$ \mu_1 > \mu_2, \quad d_0 > 0 $$
+$$3) \quad \alpha = 0.05$$
+
+```{r echo=FALSE}
+t.test(rightRBicep, leftRBicep, alternative = "greater", var.equal = FALSE)
+```
+
+Odbija se hipoteza $H_0$ jer je p-vrijednost manja od razine značajnosti.
+
+Može se i testirati jednakost sredina dešnjaka i ambidekstrenih vojnika. Postave se hipoteze i provjeri jednakost varijanci:
+$$1) \quad H_0 \quad \dots \quad Varijance \ su \ jednake $$ $$\sigma_1 = \sigma_2 $$
+$$2)  \quad H_1 \quad \dots \quad Varijance \ se \ razlikuju $$ $$ \sigma_1 \neq \sigma_2    $$
+$$3) \quad \alpha = 0.05$$
+
+
+```{r echo=FALSE}
+var.test(rightRBicep, ambiRBicep)
+```
+
+P-vrijednost je znatno veća od razine značajnosti $\alpha$, pa se hipoteza $H_0$ ne odbija.
+
+Hipoteze za jednakost sredina ovih dviju populacija glase:
+$$1) \quad H_0 \quad \dots \quad Opseg \ desnog \ bicepsa \ dešnjaka \ je \ jednak \ opsegu \ desnog \ bicepsa \ ambidekstrenih \ vojnika $$ $$ \mu_1 = \mu_2, \quad d_0=0 $$
+$$2)  \quad H_1  \quad \dots \quad Opseg \ desnog \ bicepsa \ dešnjaka \ je \ veći \ od \ desnog \ bicepsa \ ambidekstrenih \ vojnika  $$ $$ \mu_1 > \mu_2, \quad d_0 > 0 $$
+$$3) \quad \alpha = 0.05$$
+
+```{r echo=FALSE}
+t.test(rightRBicep, ambiRBicep, alternative = "greater", var.equal = TRUE)
+```
+P-vrijednost je veća od zadane razine značajnosti, pa se hipoteza $H_0$ ne odbija.
+
+
+
+
+
+
+\newpage
+
+
+# Linearna regresija
+
+## Postoji li veza izmedu nekih varijabli i kilaže vojnika?
+
+### Usporedba tjelesne mase i širine struka
+
+Poznato je da se povećanjem tjelesne mase skupljaju masne naslage i to često u predjelu trbuha. Možemo provjeriti na koji način su u ovom skupu podataka povezane ove dvije varijable:
+
+```{r fig.align="center", out.width="50%"}
+waist <- data$waistcircumference/10
+maleWaist <- ( data[data$Gender=="Male", ] )$waistcircumference/10
+femaleWaist <- ( data[data$Gender=="Female", ] )$waistcircumference/10
+
+# Smanjivanje prozirnosti da se točke bolje vide
+col1 <- "#3CAEA365"
+col2 <- "#B1624E65"
+
+# Stvaranje plota i ubacivanje točaka o muškarcima
+plot(maleWeights,
+     maleWaist,
+     col=c(col1),
+     main="Scatter plot for weight and waist circumference of a soldier", 
+     xlab="Weight (kg)",
+     ylab="Waist circumference (cm)")
+
+# Dodavanje točaka za žene
+points(femaleWeights,
+       femaleWaist,
+     col=c(col2))
+
+# Legenda za spol
+legend("topleft",
+       inset=.05,
+       title="Gender",
+       legend=c("Male", "Female"),
+       fill=c(col1, col2))
+```
+
+Već iz dijagrama raspršenja može se naslutiti nekakva linearnu povezanost ovih dviju varijabli. Podaci se još mogu prikazati i uz pravac linearne regresije nakon podjele po spolu:
+
+
+```{r fig.show="hold", out.width="50%"}
+# Model linearne regresije ( y ~ x )
+reg1 <- lm( femaleWaist ~ femaleWeights, data = data )
+reg2 <- lm( maleWaist ~ maleWeights, data = data )
+
+# Dodavanje točaka za žene
+plot(femaleWeights,
+     femaleWaist,
+     col=c(col2),
+     main="Linear regression plot for weight and waist circumference of a female soldier", 
+     xlab="Weight (kg)", 
+     ylab="Waist circumference (cm)")
+# Pravac regresije za žene
+abline(reg1)
+
+# Dodavanje točaka za muškarce
+plot(maleWeights,
+     maleWaist,
+     col=c(col1),
+     main="Linear regression plot for height and weight of a male soldier", 
+     xlab="Weight (kg)", 
+     ylab="Waist circumference (cm)")
+# Pravac regresije za muškarce
+abline(reg2)
+```
+
+### Provjere pretpostavki linearne regresije između visine i težine
+
+Ovdje su prešućene pretpostavke modela liearne regresije, a to su homogenost varijance i ravnanje reziduala po normalnoj razdiobi: $\mathscr N (0, \sigma^2)$. Ove pretpostavke mogu se provjeriti raznim vizualizacijama kao što su histogrami i QQ plotovi reziduala:
+
+```{r fig.show="hold", out.width="50%"}
+# Histogram reziduala - žene
+hist(reg1$residuals,
+     breaks = 15,
+     main="Residual histogram for weight and waist circumference of a female soldier",
+     xlab = "Waist circumference residuals (cm)",
+     col = brown)
+
+# Scatter plot reziduala - žene
+plot(femaleWaist, rstandard(reg1), 
+     main="Residual scatter plot for weight and waist circumference of a female soldier", 
+     ylab = "Waist circumference residuals (cm)",
+     xlab = "Waist circumference (cm)",
+     col = brown)
+
+# QQ plot - žene
+qqnorm(rstandard(reg1),
+      main="Residual QQ plot for weight and waist circumference of a female soldier")
+
+qqline(rstandard(reg1), col = blue, lwd = 2)
+
+
+# Histogram reziduala - muškarci
+hist(reg2$residuals,
+     breaks = 15,
+     main="Residual histogram for weight and waist circumference of a male soldier",
+     xlab = "Waist circumference residuals (cm)",
+     col = blue)
+
+# Scatter plot reziduala - muškarci
+plot(maleWaist, rstandard(reg2), 
+     main="Residual scatter plot for weight and waist circumference of a male soldier", 
+     ylab = "Waist circumference residuals (cm)",
+     xlab = "Waist circumference (cm)",
+     col = blue)
+
+# QQ plot - muškarci
+qqnorm(rstandard(reg2),
+      main="Residual QQ plot for weight and waist circumference of a male soldier")
+
+qqline(rstandard(reg1), col = blue, lwd=2)
+
+```
+
+Ovi grafovi potvrđuju prethodno spomenute pretpostavke. Iz QQ plota može se vidjeti da se reziduali ravnaju po normalnoj razdiobi s parametrima 0 i $\sigma^2$, a dijagram raspršenja ukazuje da je standardna devijacija podjednaka. Pomoću funkcije summary mogu se saznati još mnoge stvari o modelu. U prvom retku ispisuje se nešto više o raspodjeli reziduala. Dio s koeficijentima daje $b_0$ i $b_1$ parametre iz procijenjenog modela i provodi testove s hipotezama: $$1) \quad H_0: \quad \beta_i = 0$$ $$ 2) \quad H_1: \quad \beta_i \neq 0 $$ $$ i \in \{0, 1\}$$ pomoću t-testa nad modelom.
+
+```{r}
+cat("Tests and parameters for female weight and waist circumference regression:\n")
+summary(reg1)
+cat("Correlation coefficient: ",cor(femaleWeights, femaleWaist))
+cat("\n\n")
+cat("Tests and parameters for male weight and waist circumference regression:\n")
+summary(reg2)
+cat("Correlation coefficient: ",cor(maleWeights, maleWaist))
+```
+
+Može se vidjeti da se za sva tri testa vezana za parametre modela, hipoteza $H_0$ odbija u korist hipoteze $H_1$ što govori da parametri nisu jednaki nula. Korelacijski koeficijenti pokazuju da modeli u nekoj mjeri objašnjavaju tjelesnu masu, no poželjno je da su većeg iznosa.
+
+
+## Usporedba više parametara i tjelesne mase
+
+Možemo sada pokušati objasniti tjelesnu masu pomoću nekih drugih značajki. Varijable koje bi mogle objašnjavati tjelesnu masu su visina, opseg struka, opseg zapešća, opseg bedra, opseg lista i opseg vrata. Za ovo se može koristiti model višestruke regresije, no potrebno je paziti na međusobnu koreliranost regresora. Ovo se lako provjeri pomoću korelacijske matrice:
+ 
+```{r}
+height <- data$stature/10
+waist <- data$waistcircumference/10
+wrist <- data$wristcircumference/10
+ankle <- data$anklecircumference/10
+thigh <- data$thighcircumference/10
+calf <- data$calfcircumference/10
+neck <- data$neckcircumference/10
+
+cat("Correlation matrix of regressors:\n")
+cor(cbind(height, waist, ankle, thigh, calf, neck))
+```
+
+U ovom ispisu neki od regresora imaju relativno velik koeficijent korelacije. Mogu se provjeriti ove vrijednosti za npr. visinu, opseg struka i opseg gležnja.
+
+```{r echo=FALSE}
+cor(cbind(height, waist, ankle))
+```
+
+Pošto muškarci imaju više testosterona očekuje se da imaju jaču tjelesnu građu. Ova nominalna varijabla može se uključiti u model višestruke regresiju. Provjeriti ćemo dijagramom raspršenja utječe li spol na tjelesnu masu i testirati hipoteze $\beta_i=0, \ i \in \{0,1, 2, 3,4\}$ s alternativom $\beta_i \neq 0$ o ovom modelu.
+
+```{r  echo=FALSE, message=FALSE, fig.align="center", out.width="50%"}
+boxplot(weights ~ data$Gender,
+        xlab ="Gender",
+        ylab = "Weight (kg)",
+        main = "Soldier's weight in centimeters and gender box plot",
+        col = c(brown, blue))
+
+legend("topleft",
+       inset=.05,
+       title="Gender",
+       legend=c("Male","Female"),
+       fill=c(blue, brown))
+```
+
+```{r include=FALSE}
+require(fastDummies)
+dummyGenderData = dummy_cols(data,select_columns='Gender')
+
+mulReg = lm(weights ~ height + waist+ ankle + Gender_Male, dummyGenderData)
+cat("Tests and parameters for weight multiple regression:\n")
+summary(mulReg)
+```
+
+Iz ovog ispisa vidimo da je p-vrijednost za sve testove izrazito mala, što potvrđuje odbijanje hipoteze $H_0$ u korist alternative $H_1$. Možda opseg gležnja i ne utječe toliko na tjelesnu masu vojnika. Moguće je izbaciti ga iz modela i usporediti rezultate.
+
+```{r echo=FALSE}
+mulReg = lm(weights ~ height + waist + Gender_Male, dummyGenderData)
+summary(mulReg)
+```
+
+Vrijednost prilagođenog koeficijenta determinacije $R^2$ i $R^2_{adj}$ se smanjila za oko 0.03 što pokazuje da opseg gležnja ipak ima neki utjecaj tjelesnu masu pa ga ne moramo izbacivati iz modela. 
+
+\newpage
+
+# Koje mjere kaciga biste preporučili američkoj vojsci i koliko različitih veličina?
+
+Kako bi se moglo reći nešto više o veličini kaciga za američku vojsku, potrebno je provjeriti npr. varijablu opsega, širine, dužine glave i udaljenosti od vrha glave do uha. Pošto su muškarci jače tjelesne građe može se pogledati utjecaj spola na ove varijable.
+
+## Vizualizacija i  numeričke karakteristike
+
+```{r echo=FALSE}
+headCircM <- data[data$Gender=="Male",]$headcircumference/10
+headBreadthM <- data[data$Gender=="Male",]$headbreadth/10
+headLengthM <- data[data$Gender=="Male",]$headlength/10
+tragionM <- data[data$Gender=="Male",]$tragiontopofhead/10
+headCircF <- data[data$Gender=="Female",]$headcircumference/10
+headBreadthF <- data[data$Gender=="Female",]$headbreadth/10
+headLengthF <- data[data$Gender=="Female",]$headlength/10
+tragionF <- data[data$Gender=="Female",]$tragiontopofhead/10
+
+
+drawLegend <- function() { 
+  legend("topleft",
+       inset=.05,
+       title="Gender",
+       legend=c("Male","Female"),
+       fill=c(blue, brown))
+} 
+
+drawHeadHistogram <- function(drawData, desc, xdesc, color) { 
+ hist(drawData,
+     main=desc,
+     xlab = xdesc,
+     col = color)
+}
+
+drawBoxPlotHead <- function(drawData, desc, ydesc) { 
+boxplot(drawData,
+        xlab ="Gender",
+        ylab = ydesc,
+        main = desc,
+        col = c(brown, blue))
+}
+
+```
+
+
+```{r echo=FALSE, fig.show="hold", out.width="50%"}
+drawHeadHistogram( headCircM,
+                  "Male soldier's head circumference histogram",
+                  "Head circumference (cm)",
+                  blue)
+drawHeadHistogram( headCircF,
+                  "Female soldier's head circumference histogram",
+                  "Head circumference (cm)",
+                  brown)
+cat("Male head circumference:\n")
+summary(headCircM)
+
+cat("Female head circumference:\n")
+summary(headCircF)
+
+
+```
+
+```{r echo=FALSE, fig.align="center", out.width="80%"}
+drawBoxPlotHead(data$headcircumference/10 ~ data$Gender,
+               "Soldier's head circumference and gender box plot",
+               "Head circumference (cm)" )
+drawLegend()
+```
+
+\newpage
+
+```{r echo=FALSE, fig.show="hold", out.width="50%"}
+drawHeadHistogram( headBreadthM,
+                  "Male soldier's head breadth histogram",
+                  "Head breadth (cm)",
+                  blue)
+drawHeadHistogram( headBreadthF,
+                  "Female soldier's head breadth histogram",
+                  "Head breadth (cm)",
+                  brown)
+cat("Male head breadth:\n")
+summary(headBreadthM)
+
+cat("Female head breadth:\n")
+summary(headBreadthF)
+
+```
+
+```{r echo=FALSE, fig.align="center"}
+
+drawBoxPlotHead(data$headbreadth/10 ~ data$Gender,
+               "Soldier's head breadth and gender box plot",
+               "Head breadth (cm)" )
+drawLegend()
+```
+
+
+\newpage
+
+```{r echo=FALSE, fig.show="hold", out.width="50%"}
+drawHeadHistogram( headLengthM,
+                  "Male soldier's head length histogram",
+                  "Head length (cm)",
+                  blue)
+drawHeadHistogram( headLengthF,
+                  "Female soldier's head length histogram",
+                  "Head length (cm)",
+                  brown)
+
+cat("Male head length:\n")
+summary(headLengthM)
+
+cat("Female head length:\n")
+summary(headLengthF)
+
+```
+
+```{r echo=FALSE, fig.align="center"}
+drawBoxPlotHead(data$headlength/10 ~ data$Gender,
+               "Soldier's head length and gender box plot",
+               "Head length (cm)" )
+drawLegend()
+```
+
+
+\newpage
+
+```{r echo=FALSE, fig.show="hold", out.width="50%"}
+drawHeadHistogram( tragionM,
+                  "Male soldier's tragion top of head histogram",
+                  "Tragion top of head distance (cm)",
+                  blue)
+drawHeadHistogram( tragionF,
+                  "Female soldier's tragion top of head histogram",
+                  "Tragion top of head distance (cm)",
+                  brown)
+
+cat("Male tragion top of head distance:\n")
+summary(tragionM)
+
+cat("Female tragion top of head distance:\nn")
+summary(tragionF)
+
+```
+
+```{r echo=FALSE, fig.align="center"}
+drawBoxPlotHead(data$tragiontopofhead/10 ~ data$Gender,
+               "Soldier's tragion top of head and gender box plot",
+               "Tragion top of head distance (cm)" )
+drawLegend()
+```
+
+\newpage
+
+## Prijedlozi veličina kaciga
+
+\renewcommand{\arraystretch}{2}
+\begin{tabular}{ |p{3cm}|p{3cm}|p{3cm}|p{3cm}|p{3cm}|  }
+\hline
+
+\multicolumn{5}{|c|}{\textbf{Veličine kaciga}} \\ \hline
+Oznaka veličine & Opseg kacige (cm) & Širina kacige (cm) & Dužina kacige (cm) & Dubina kacige (cm) \\ \hline
+S & 55 & 15 & 18.5 & 12  \\ \hline
+M & 58 & 16 & 20 & 13 \\ \hline
+L & 61 & 17 & 21.5 & 14 \\ \hline
+XL & 64 & 18.5 & 23 & 15 \\ \hline
+\end{tabular}
+
+Uzevši u obzir numeričke karakteristike oba spola, odlučili smo se za 4 veličine kacige. Veličine koje smo odabrali su: S, M, L i XL. U tablici su navedene sve mjere koje bi pojedine veličine imale. Čini nam se da bi na ovaj način svatko dobio kacigu koja bi mu bila udobna za nositi, ali da opet nije potrebno napraviti puno različitih veličina. Ove veličine su univerzalne i namijenjene za oba spola. Muškarci bi uglavnom nosili M ili L kacige, a većina žena S ili M kacige.

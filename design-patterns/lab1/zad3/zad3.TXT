@@ -1,0 +1,2 @@
+Razlog zašto objekt CoolClass klase zauzima 16 bajtova je jer int varijabla zauzima 4 bajta, a pokazivac na virtualnu tablicu zauzima 8 bajtova na 64 bitnoj arhitekturi. Uz to se dodaje i 4 bajta paddinga jer se uvijek dodaje padding tako da cijela struktura zauzima prvi visekratnik broja bajtova koji zauzima najveci clan.
+Razlog zasto objekt PlainOldClass klase zauzima 4 bajta je jer sadrzi samo jednu int varijablu, a funkcije koje sadrzi nisu virtualne pa nema potrebe da sadrzi pokazivac na virtualnu tablicu.
